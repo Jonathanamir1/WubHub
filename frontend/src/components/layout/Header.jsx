@@ -9,11 +9,11 @@ import {
 	Avatar,
 	Text,
 	UnstyledButton,
+	Divider,
+	Paper,
 } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext';
-
-// Import icons
-import { FiLogOut, FiUser, FiMusic, FiPlus, FiGrid } from 'react-icons/fi';
+import { FiLogOut, FiUser, FiMusic, FiPlus, FiLayout } from 'react-icons/fi';
 
 const Header = () => {
 	const { currentUser, isAuthenticated, logout } = useAuth();
@@ -25,15 +25,23 @@ const Header = () => {
 	};
 
 	return (
-		<MantineHeader
-			height={60}
-			p='xs'
+		<Paper
+			shadow='sm'
+			p='md'
+			sx={(theme) => ({
+				backgroundColor: theme.colors.blue[7],
+				height: 70,
+				display: 'flex',
+				alignItems: 'center',
+				position: 'sticky',
+				top: 0,
+				zIndex: 100,
+				borderRadius: 0,
+			})}
 		>
-			{' '}
-			// Use the renamed component here
 			<Group
 				position='apart'
-				sx={{ height: '100%' }}
+				sx={{ width: '100%' }}
 			>
 				<Group>
 					<Title
@@ -42,7 +50,7 @@ const Header = () => {
 					>
 						<Link
 							to='/'
-							style={{ textDecoration: 'none', color: 'inherit' }}
+							style={{ textDecoration: 'none', color: 'white' }}
 						>
 							WubHub
 						</Link>
@@ -54,16 +62,19 @@ const Header = () => {
 						<>
 							<Button
 								component={Link}
-								to='/workspaces/new'
-								variant='outline'
+								to='/projects/new'
+								variant='filled'
+								color='cyan'
 								leftIcon={<FiPlus size={14} />}
+								radius='md'
 							>
-								New Workspace
+								New Project
 							</Button>
 
 							<Menu
 								width={200}
 								position='bottom-end'
+								shadow='md'
 							>
 								<Menu.Target>
 									<UnstyledButton>
@@ -71,20 +82,24 @@ const Header = () => {
 											<Avatar
 												src={currentUser.profile_image}
 												radius='xl'
-												size='sm'
+												size='md'
+												color='cyan'
 											/>
-											<Text
-												weight={500}
-												size='sm'
-												mr={3}
-											>
-												{currentUser.username}
-											</Text>
+											<Box>
+												<Text
+													weight={600}
+													size='sm'
+													color='white'
+												>
+													{currentUser.username}
+												</Text>
+											</Box>
 										</Group>
 									</UnstyledButton>
 								</Menu.Target>
 
 								<Menu.Dropdown>
+									<Menu.Label>Account</Menu.Label>
 									<Menu.Item
 										icon={<FiUser size={14} />}
 										component={Link}
@@ -93,20 +108,20 @@ const Header = () => {
 										Profile
 									</Menu.Item>
 									<Menu.Item
-										icon={<FiGrid size={14} />}
+										icon={<FiMusic size={14} />}
+										component={Link}
+										to='/dashboard'
+									>
+										My Projects
+									</Menu.Item>
+									<Menu.Item
+										icon={<FiLayout size={14} />}
 										component={Link}
 										to='/dashboard'
 									>
 										Dashboard
 									</Menu.Item>
-									<Menu.Item
-										icon={<FiMusic size={14} />}
-										component={Link}
-										to='/projects'
-									>
-										My Projects
-									</Menu.Item>
-									<Menu.Divider />
+									<Divider />
 									<Menu.Item
 										icon={<FiLogOut size={14} />}
 										onClick={handleLogout}
@@ -123,12 +138,17 @@ const Header = () => {
 								component={Link}
 								to='/login'
 								variant='subtle'
+								color='white'
+								radius='md'
 							>
 								Log In
 							</Button>
 							<Button
 								component={Link}
 								to='/register'
+								variant='filled'
+								color='cyan'
+								radius='md'
 							>
 								Sign Up
 							</Button>
@@ -136,7 +156,7 @@ const Header = () => {
 					)}
 				</Group>
 			</Group>
-		</MantineHeader>
+		</Paper>
 	);
 };
 

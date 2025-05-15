@@ -5,7 +5,9 @@ class UserSerializer < ActiveModel::Serializer
     if object.profile_image.attached?
       Rails.application.routes.url_helpers.rails_blob_url(object.profile_image)
     else
-      "/default-avatar.png"
+      nil # Return nil instead of a default URL to prevent errors
     end
+  rescue
+    nil # Return nil if there's any error getting the URL
   end
 end

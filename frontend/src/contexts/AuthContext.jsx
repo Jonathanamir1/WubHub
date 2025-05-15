@@ -33,10 +33,8 @@ export const AuthProvider = ({ children }) => {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await api.post('/api/v1/auth/login', {
-				email,
-				password,
-			});
+			// Use the loginUser function from the api object
+			const response = await api.loginUser(email, password);
 			localStorage.setItem('token', response.data.token);
 			setCurrentUser(response.data.user);
 			return response.data;
@@ -52,7 +50,8 @@ export const AuthProvider = ({ children }) => {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await api.post('/api/v1/auth/register', userData);
+			// Use the registerUser function from the api object
+			const response = await api.registerUser(userData);
 			localStorage.setItem('token', response.data.token);
 			setCurrentUser(response.data.user);
 			return response.data;
@@ -71,7 +70,8 @@ export const AuthProvider = ({ children }) => {
 
 	const getCurrentUser = async () => {
 		try {
-			const response = await api.get('/api/v1/auth/current');
+			// Use the getCurrentUser function from the api object
+			const response = await api.getCurrentUser();
 			return response.data;
 		} catch (error) {
 			throw new Error('Failed to fetch current user');

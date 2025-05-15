@@ -1,10 +1,11 @@
-# app/controllers/application_controller.rb
 class ApplicationController < ActionController::API
   include ActionController::MimeResponds
-
+  
+  # Important: Define and skip this for login/register
   before_action :authenticate_user!
 
-  # Authentication methods
+  protected
+
   def authenticate_user!
     unless current_user
       render json: { error: 'Unauthorized - Please log in to continue' }, status: :unauthorized
@@ -16,8 +17,15 @@ class ApplicationController < ActionController::API
   def current_user
     @current_user ||= begin
       token = extract_token_from_request
-      user_id = decode_token(token)['user_id'] if token.present?
-      User.find_by(id: user_id) if user_id
+      return nil unless token.present?
+      
+      decoded_token = decode_token(token)
+      return nil unless decoded_token.present? && decoded_token['user_id'].present?
+      
+      User.find_by(id: decoded_token['user_id'])
+    rescue JWT::DecodeError, ActiveRecord::RecordNotFound => e
+      Rails.logger.error("Authentication error: #{e.message}")
+      nil
     end
   end
 
@@ -35,7 +43,8 @@ class ApplicationController < ActionController::API
   def decode_token(token)
     begin
       JWT.decode(token, jwt_secret, true, { algorithm: 'HS256' })[0]
-    rescue JWT::DecodeError
+    rescue JWT::DecodeError => e
+      Rails.logger.error("Token decode error: #{e.message}")
       {}
     end
   end

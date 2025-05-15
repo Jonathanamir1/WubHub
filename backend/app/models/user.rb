@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  # Associations
   has_many :workspaces, dependent: :destroy
   has_many :projects, dependent: :destroy
   has_many :roles, dependent: :destroy
@@ -6,24 +7,36 @@ class User < ApplicationRecord
   has_many :track_versions, dependent: :destroy
   has_many :comments, dependent: :destroy
 
-  # Add Active Storage attachment
+  # Active Storage
   has_one_attached :profile_image
+
+  # Authentication - THIS IS CRITICAL
+  has_secure_password
 
   # Validations
   validates :username, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
-
-  # Add has_secure_password for password handling
-  has_secure_password
-
+  
+  # Returns all workspaces the user has access to (owned + collaborated)
   def all_workspaces
-    # Return owned workspaces and those the user is a member of through roles
-    # In a real implementation, you would query through associations
     Workspace.where(id: self.workspaces.pluck(:id))
+    # For a real implementation with collaborators, you'd include workspaces from collaborations
   end
   
+  # Returns all projects the user has access to (owned + collaborated)
   def all_projects
-    # Return owned projects and those the user is a collaborator on
     Project.where(id: self.projects.pluck(:id) + self.collaborated_projects.pluck(:id))
+  end
+  
+  # Returns recent projects for the user
+  def recent_projects(limit = 10)
+    # Get all accessible projects and sort by updated_at
+    projects = self.all_projects
+      .includes(:workspace) # Include workspace to avoid N+1 queries
+      .order(updated_at: :desc)
+      .limit(limit)
+    
+    # You could also add more logic here, like filtering by last activity
+    projects
   end
 end

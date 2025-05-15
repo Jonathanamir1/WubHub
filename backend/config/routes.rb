@@ -2,6 +2,12 @@
 Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
+      # Debug routes
+      get 'debug', to: 'debug#index'
+      get 'debug/current_user', to: 'debug#current_user_info'
+      get 'debug/workspaces', to: 'debug#check_workspaces'
+      get 'auth/debug', to: 'auth#debug'
+      
       # Authentication routes
       post 'auth/login', to: 'auth#login'
       post 'auth/register', to: 'auth#register'
@@ -17,6 +23,9 @@ Rails.application.routes.draw do
 
       # Project routes
       resources :projects do
+        collection do
+          get 'recent' # Add this route for fetching recent projects
+        end
         resources :track_versions
       end
 
