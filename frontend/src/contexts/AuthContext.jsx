@@ -1,0 +1,93 @@
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import api from '../services/api';
+
+const AuthContext = createContext(null);
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+	const [currentUser, setCurrentUser] = useState(null);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
+
+	useEffect(() => {
+		const token = localStorage.getItem('token');
+
+		if (token) {
+			getCurrentUser()
+				.then((data) => {
+					setCurrentUser(data.user);
+					setLoading(false);
+				})
+				.catch((err) => {
+					console.error('Failed to fetch user:', err);
+					localStorage.removeItem('token');
+					setLoading(false);
+				});
+		} else {
+			setLoading(false);
+		}
+	}, []);
+
+	const loginUser = async (email, password) => {
+		try {
+			setLoading(true);
+			setError(null);
+			const response = await api.post('/api/v1/auth/login', {
+				email,
+				password,
+			});
+			localStorage.setItem('token', response.data.token);
+			setCurrentUser(response.data.user);
+			return response.data;
+		} catch (err) {
+			setError(err.message || 'Failed to login');
+			throw err;
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const registerUser = async (userData) => {
+		try {
+			setLoading(true);
+			setError(null);
+			const response = await api.post('/api/v1/auth/register', userData);
+			localStorage.setItem('token', response.data.token);
+			setCurrentUser(response.data.user);
+			return response.data;
+		} catch (err) {
+			setError(err.message || 'Failed to register');
+			throw err;
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const logout = () => {
+		localStorage.removeItem('token');
+		setCurrentUser(null);
+	};
+
+	const getCurrentUser = async () => {
+		try {
+			const response = await api.get('/api/v1/auth/current');
+			return response.data;
+		} catch (error) {
+			throw new Error('Failed to fetch current user');
+		}
+	};
+
+	const value = {
+		currentUser,
+		isAuthenticated: !!currentUser,
+		loading,
+		error,
+		loginUser,
+		registerUser,
+		logout,
+		getCurrentUser,
+	};
+
+	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
