@@ -14,7 +14,10 @@ import {
 	FiAlertCircle,
 } from 'react-icons/fi';
 
-const DashboardPage = () => {
+// Import components
+import Spinner from '../components/common/Spinner';
+
+const DashboardPage = ({ sidebarOpen, setSidebarOpen }) => {
 	const { currentUser } = useAuth();
 	const [workspaces, setWorkspaces] = useState([]);
 	const [recentProjects, setRecentProjects] = useState([]);
@@ -150,29 +153,11 @@ const DashboardPage = () => {
 		return (
 			<div className='min-h-screen flex items-center justify-center bg-ableton-dark-400'>
 				<div className='flex flex-col items-center'>
-					<div className='animate-spin h-10 w-10 text-ableton-blue-500 mb-4'>
-						<svg
-							className='w-full h-full'
-							xmlns='http://www.w3.org/2000/svg'
-							fill='none'
-							viewBox='0 0 24 24'
-						>
-							<circle
-								className='opacity-25'
-								cx='12'
-								cy='12'
-								r='10'
-								stroke='currentColor'
-								strokeWidth='4'
-							></circle>
-							<path
-								className='opacity-75'
-								fill='currentColor'
-								d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-							></path>
-						</svg>
-					</div>
-					<p className='text-gray-400'>Loading your dashboard...</p>
+					<Spinner
+						size='lg'
+						color='blue'
+					/>
+					<p className='text-gray-400 mt-4'>Loading your dashboard...</p>
 				</div>
 			</div>
 		);
@@ -183,7 +168,8 @@ const DashboardPage = () => {
 		return (
 			<div className='min-h-screen flex items-center justify-center bg-ableton-dark-400 px-4'>
 				<div className='bg-red-500/10 border border-red-500/30 rounded-lg p-4 max-w-md w-full'>
-					<h2 className='text-red-500 text-lg font-semibold mb-2'>
+					<h2 className='text-red-500 text-lg font-semibold mb-2 flex items-center'>
+						<FiAlertCircle className='w-5 h-5 mr-2' />
 						Error Loading Dashboard
 					</h2>
 					<p className='text-gray-300'>{error}</p>
@@ -200,176 +186,182 @@ const DashboardPage = () => {
 
 	return (
 		<div className='min-h-screen bg-ableton-dark-400 text-gray-200'>
-			<main className='container mx-auto px-4 py-8 max-w-7xl'>
-				{/* Dashboard Header */}
-				<div className='flex flex-col md:flex-row md:items-center md:justify-between mb-8'>
-					<div>
-						<h1 className='text-2xl md:text-3xl font-bold text-white'>
-							Dashboard
-						</h1>
-						<p className='text-gray-400 mt-1'>
-							Welcome back, {currentUser?.username || 'User'}
-						</p>
-					</div>
-					<button
-						onClick={() => setShowCreateModal(true)}
-						className='mt-4 md:mt-0 flex items-center px-4 py-2 bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white rounded-md transition-colors'
-					>
-						<FiPlus className='w-5 h-5 mr-2' />
-						New Workspace
-					</button>
-				</div>
-
-				{/* Tabs */}
-				<div className='border-b border-ableton-dark-200 mb-6'>
-					<div className='flex space-x-8'>
-						<button
-							className={`py-4 px-1 flex items-center ${
-								activeTab === 'workspaces'
-									? 'text-ableton-blue-400 border-b-2 border-ableton-blue-400 font-medium'
-									: 'text-gray-400 hover:text-gray-300'
-							}`}
-							onClick={() => setActiveTab('workspaces')}
-						>
-							<FiFolder className='w-5 h-5 mr-2' />
-							<span>My Workspaces</span>
-						</button>
-						<button
-							className={`py-4 px-1 flex items-center ${
-								activeTab === 'recent'
-									? 'text-ableton-blue-400 border-b-2 border-ableton-blue-400 font-medium'
-									: 'text-gray-400 hover:text-gray-300'
-							}`}
-							onClick={() => setActiveTab('recent')}
-						>
-							<FiClock className='w-5 h-5 mr-2' />
-							<span>Recent Projects</span>
-						</button>
-					</div>
-				</div>
-
-				{/* Content */}
-				<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-					{activeTab === 'workspaces' &&
-						workspaces.map((workspace) => (
-							<div
-								key={workspace.id}
-								className='bg-ableton-dark-300 rounded-xl overflow-hidden shadow-lg border border-ableton-dark-200 hover:border-ableton-dark-100 transition-colors'
-							>
-								<div className='h-3 bg-gradient-to-r from-ableton-blue-500 to-ableton-purple-500'></div>
-								<div className='p-6'>
-									<div className='flex justify-between items-start mb-3'>
-										<h3 className='text-xl font-semibold text-white'>
-											{workspace.name}
-										</h3>
-										<span
-											className={`text-xs px-2 py-1 rounded-full ${getWorkspaceTypeColor(
-												workspace.workspace_type
-											)}`}
-										>
-											{workspace.workspace_type}
-										</span>
-									</div>
-									<p className='text-gray-400 text-sm mb-4 line-clamp-2 h-10'>
-										{workspace.description}
-									</p>
-									<div className='flex justify-between items-center text-sm text-gray-500 mb-5'>
-										<div className='flex items-center'>
-											<FiMusic className='w-4 h-4 mr-1' />
-											<span>{workspace.project_count} projects</span>
-										</div>
-										<div>
-											Created{' '}
-											{new Date(workspace.created_at).toLocaleDateString()}
-										</div>
-									</div>
-									<Link
-										to={`/workspaces/${workspace.id}`}
-										className='block w-full text-center py-2 bg-ableton-dark-200 hover:bg-ableton-dark-100 text-ableton-blue-400 font-medium rounded-md transition-colors'
-									>
-										View Workspace
-									</Link>
-								</div>
-							</div>
-						))}
-
-					{activeTab === 'recent' &&
-						recentProjects.map((project) => (
-							<div
-								key={project.id}
-								className='bg-ableton-dark-300 rounded-xl overflow-hidden shadow-lg border border-ableton-dark-200 hover:border-ableton-dark-100 transition-colors'
-							>
-								<div className='p-6'>
-									<div className='flex justify-between items-start mb-2'>
-										<h3 className='text-xl font-semibold text-white'>
-											{project.title}
-										</h3>
-										<span className='bg-ableton-dark-200 text-gray-400 text-xs px-2 py-1 rounded-full'>
-											{project.version_count} versions
-										</span>
-									</div>
-									<p className='text-sm text-ableton-blue-400 mb-3'>
-										{project.workspace_name}
-									</p>
-									<p className='text-gray-400 text-sm mb-4 line-clamp-2 h-10'>
-										{project.description}
-									</p>
-									<div className='text-sm text-gray-500 mb-5'>
-										Last updated:{' '}
-										{new Date(project.updated_at).toLocaleDateString()}
-									</div>
-									<Link
-										to={`/workspaces/${project.workspace_id}/projects/${project.id}`}
-										className='block w-full text-center py-2 bg-ableton-dark-200 hover:bg-ableton-dark-100 text-ableton-blue-400 font-medium rounded-md transition-colors'
-									>
-										Open Project
-									</Link>
-								</div>
-							</div>
-						))}
-				</div>
-
-				{/* Empty State */}
-				{activeTab === 'workspaces' && workspaces.length === 0 && (
-					<div className='bg-ableton-dark-300 rounded-xl p-8 text-center'>
-						<div className='bg-ableton-dark-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'>
-							<FiFolder className='w-8 h-8 text-gray-400' />
+			<main
+				className={`transition-all duration-300 ${
+					sidebarOpen ? 'ml-64' : 'ml-0'
+				}`}
+			>
+				<div className='container mx-auto px-4 py-8 max-w-7xl'>
+					{/* Dashboard Header */}
+					<div className='flex flex-col md:flex-row md:items-center md:justify-between mb-8'>
+						<div>
+							<h1 className='text-2xl md:text-3xl font-bold text-white'>
+								Dashboard
+							</h1>
+							<p className='text-gray-400 mt-1'>
+								Welcome back, {currentUser?.username || 'User'}
+							</p>
 						</div>
-						<h3 className='text-xl font-semibold text-white mb-2'>
-							No workspaces yet
-						</h3>
-						<p className='text-gray-400 mb-6 max-w-md mx-auto'>
-							Create your first workspace to start organizing your music
-							projects
-						</p>
 						<button
 							onClick={() => setShowCreateModal(true)}
-							className='px-4 py-2 bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white rounded-md transition-colors'
+							className='mt-4 md:mt-0 flex items-center px-4 py-2 bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white rounded-md transition-colors'
 						>
-							Create Workspace
+							<FiPlus className='w-5 h-5 mr-2' />
+							New Workspace
 						</button>
 					</div>
-				)}
 
-				{activeTab === 'recent' && recentProjects.length === 0 && (
-					<div className='bg-ableton-dark-300 rounded-xl p-8 text-center'>
-						<div className='bg-ableton-dark-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'>
-							<FiMusic className='w-8 h-8 text-gray-400' />
+					{/* Tabs */}
+					<div className='border-b border-ableton-dark-200 mb-6'>
+						<div className='flex space-x-8'>
+							<button
+								className={`py-4 px-1 flex items-center ${
+									activeTab === 'workspaces'
+										? 'text-ableton-blue-400 border-b-2 border-ableton-blue-400 font-medium'
+										: 'text-gray-400 hover:text-gray-300'
+								}`}
+								onClick={() => setActiveTab('workspaces')}
+							>
+								<FiFolder className='w-5 h-5 mr-2' />
+								<span>My Workspaces</span>
+							</button>
+							<button
+								className={`py-4 px-1 flex items-center ${
+									activeTab === 'recent'
+										? 'text-ableton-blue-400 border-b-2 border-ableton-blue-400 font-medium'
+										: 'text-gray-400 hover:text-gray-300'
+								}`}
+								onClick={() => setActiveTab('recent')}
+							>
+								<FiClock className='w-5 h-5 mr-2' />
+								<span>Recent Projects</span>
+							</button>
 						</div>
-						<h3 className='text-xl font-semibold text-white mb-2'>
-							No recent projects
-						</h3>
-						<p className='text-gray-400 mb-6 max-w-md mx-auto'>
-							Your recent projects will appear here once you create them
-						</p>
-						<button
-							onClick={() => setActiveTab('workspaces')}
-							className='px-4 py-2 bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white rounded-md transition-colors'
-						>
-							Go to Workspaces
-						</button>
 					</div>
-				)}
+
+					{/* Content */}
+					<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+						{activeTab === 'workspaces' &&
+							workspaces.map((workspace) => (
+								<div
+									key={workspace.id}
+									className='bg-ableton-dark-300 rounded-xl overflow-hidden shadow-lg border border-ableton-dark-200 hover:border-ableton-dark-100 transition-colors'
+								>
+									<div className='h-3 bg-gradient-to-r from-ableton-blue-500 to-ableton-purple-500'></div>
+									<div className='p-6'>
+										<div className='flex justify-between items-start mb-3'>
+											<h3 className='text-xl font-semibold text-white'>
+												{workspace.name}
+											</h3>
+											<span
+												className={`text-xs px-2 py-1 rounded-full ${getWorkspaceTypeColor(
+													workspace.workspace_type
+												)}`}
+											>
+												{workspace.workspace_type}
+											</span>
+										</div>
+										<p className='text-gray-400 text-sm mb-4 line-clamp-2 h-10'>
+											{workspace.description}
+										</p>
+										<div className='flex justify-between items-center text-sm text-gray-500 mb-5'>
+											<div className='flex items-center'>
+												<FiMusic className='w-4 h-4 mr-1' />
+												<span>{workspace.project_count} projects</span>
+											</div>
+											<div>
+												Created{' '}
+												{new Date(workspace.created_at).toLocaleDateString()}
+											</div>
+										</div>
+										<Link
+											to={`/workspaces/${workspace.id}`}
+											className='block w-full text-center py-2 bg-ableton-dark-200 hover:bg-ableton-dark-100 text-ableton-blue-400 font-medium rounded-md transition-colors'
+										>
+											View Workspace
+										</Link>
+									</div>
+								</div>
+							))}
+
+						{activeTab === 'recent' &&
+							recentProjects.map((project) => (
+								<div
+									key={project.id}
+									className='bg-ableton-dark-300 rounded-xl overflow-hidden shadow-lg border border-ableton-dark-200 hover:border-ableton-dark-100 transition-colors'
+								>
+									<div className='p-6'>
+										<div className='flex justify-between items-start mb-2'>
+											<h3 className='text-xl font-semibold text-white'>
+												{project.title}
+											</h3>
+											<span className='bg-ableton-dark-200 text-gray-400 text-xs px-2 py-1 rounded-full'>
+												{project.version_count} versions
+											</span>
+										</div>
+										<p className='text-sm text-ableton-blue-400 mb-3'>
+											{project.workspace_name}
+										</p>
+										<p className='text-gray-400 text-sm mb-4 line-clamp-2 h-10'>
+											{project.description}
+										</p>
+										<div className='text-sm text-gray-500 mb-5'>
+											Last updated:{' '}
+											{new Date(project.updated_at).toLocaleDateString()}
+										</div>
+										<Link
+											to={`/workspaces/${project.workspace_id}/projects/${project.id}`}
+											className='block w-full text-center py-2 bg-ableton-dark-200 hover:bg-ableton-dark-100 text-ableton-blue-400 font-medium rounded-md transition-colors'
+										>
+											Open Project
+										</Link>
+									</div>
+								</div>
+							))}
+					</div>
+
+					{/* Empty State */}
+					{activeTab === 'workspaces' && workspaces.length === 0 && (
+						<div className='bg-ableton-dark-300 rounded-xl p-8 text-center'>
+							<div className='bg-ableton-dark-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'>
+								<FiFolder className='w-8 h-8 text-gray-400' />
+							</div>
+							<h3 className='text-xl font-semibold text-white mb-2'>
+								No workspaces yet
+							</h3>
+							<p className='text-gray-400 mb-6 max-w-md mx-auto'>
+								Create your first workspace to start organizing your music
+								projects
+							</p>
+							<button
+								onClick={() => setShowCreateModal(true)}
+								className='px-4 py-2 bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white rounded-md transition-colors'
+							>
+								Create Workspace
+							</button>
+						</div>
+					)}
+
+					{activeTab === 'recent' && recentProjects.length === 0 && (
+						<div className='bg-ableton-dark-300 rounded-xl p-8 text-center'>
+							<div className='bg-ableton-dark-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'>
+								<FiMusic className='w-8 h-8 text-gray-400' />
+							</div>
+							<h3 className='text-xl font-semibold text-white mb-2'>
+								No recent projects
+							</h3>
+							<p className='text-gray-400 mb-6 max-w-md mx-auto'>
+								Your recent projects will appear here once you create them
+							</p>
+							<button
+								onClick={() => setActiveTab('workspaces')}
+								className='px-4 py-2 bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white rounded-md transition-colors'
+							>
+								Go to Workspaces
+							</button>
+						</div>
+					)}
+				</div>
 			</main>
 
 			{/* Create Workspace Modal */}

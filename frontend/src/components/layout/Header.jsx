@@ -1,23 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-	Group,
-	Button,
-	Title,
-	Box,
-	Menu,
-	Avatar,
-	Text,
-	UnstyledButton,
-	Divider,
-	Paper,
-} from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext';
-import { FiLogOut, FiUser, FiMusic, FiPlus, FiLayout } from 'react-icons/fi';
+import { FiLogOut, FiUser, FiMenu, FiPlus } from 'react-icons/fi';
 
 const Header = () => {
 	const { currentUser, isAuthenticated, logout } = useAuth();
 	const navigate = useNavigate();
+	const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
 	const handleLogout = () => {
 		logout();
@@ -25,138 +14,102 @@ const Header = () => {
 	};
 
 	return (
-		<Paper
-			shadow='sm'
-			p='md'
-			sx={(theme) => ({
-				backgroundColor: theme.colors.blue[7],
-				height: 70,
-				display: 'flex',
-				alignItems: 'center',
-				position: 'sticky',
-				top: 0,
-				zIndex: 100,
-				borderRadius: 0,
-			})}
-		>
-			<Group
-				position='apart'
-				sx={{ width: '100%' }}
-			>
-				<Group>
-					<Title
-						order={1}
-						size='h3'
+		<header className='bg-ableton-blue-700 h-16 fixed top-0 left-0 right-0 z-10'>
+			<div className='h-full flex items-center justify-between px-4'>
+				{/* Logo section */}
+				<div className='flex items-center'>
+					<Link
+						to='/'
+						className='text-white text-2xl font-bold'
 					>
-						<Link
-							to='/'
-							style={{ textDecoration: 'none', color: 'white' }}
-						>
-							WubHub
-						</Link>
-					</Title>
-				</Group>
+						WubHub
+						<span className='text-ableton-blue-300'>.</span>
+					</Link>
+				</div>
 
-				<Group>
+				{/* Action buttons */}
+				<div className='flex items-center space-x-4'>
 					{isAuthenticated ? (
 						<>
-							<Button
-								component={Link}
-								to='/projects/new'
-								variant='filled'
-								color='cyan'
-								leftIcon={<FiPlus size={14} />}
-								radius='md'
+							<button
+								className='bg-ableton-blue-600 hover:bg-ableton-blue-500 text-white px-3 py-1.5 rounded-md text-sm flex items-center'
+								onClick={() =>
+									navigate('/dashboard', { state: { openCreateModal: true } })
+								}
 							>
-								New Project
-							</Button>
+								<FiPlus
+									className='mr-1.5'
+									size={16}
+								/>
+								<span className='hidden sm:inline'>New Project</span>
+							</button>
 
-							<Menu
-								width={200}
-								position='bottom-end'
-								shadow='md'
-							>
-								<Menu.Target>
-									<UnstyledButton>
-										<Group>
-											<Avatar
-												src={currentUser.profile_image}
-												radius='xl'
-												size='md'
-												color='cyan'
+							{/* Profile dropdown */}
+							<div className='relative'>
+								<button
+									className='flex items-center space-x-2 text-white focus:outline-none'
+									onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+								>
+									<div className='w-8 h-8 rounded-full bg-ableton-blue-500 flex items-center justify-center text-white font-medium'>
+										{currentUser?.username?.charAt(0)?.toUpperCase() || 'U'}
+									</div>
+									<span className='hidden md:inline truncate max-w-[100px]'>
+										{currentUser?.username || 'User'}
+									</span>
+								</button>
+
+								{profileMenuOpen && (
+									<div className='absolute right-0 mt-2 w-48 bg-ableton-dark-300 rounded-md shadow-lg py-1 z-20 border border-ableton-dark-200'>
+										<div className='px-4 py-2 text-sm text-gray-300 border-b border-ableton-dark-200'>
+											Signed in as <strong>{currentUser?.username}</strong>
+										</div>
+										<Link
+											to='/profile'
+											className='block px-4 py-2 text-sm text-gray-300 hover:bg-ableton-dark-200 flex items-center'
+											onClick={() => setProfileMenuOpen(false)}
+										>
+											<FiUser
+												className='mr-2'
+												size={16}
 											/>
-											<Box>
-												<Text
-													weight={600}
-													size='sm'
-													color='white'
-												>
-													{currentUser.username}
-												</Text>
-											</Box>
-										</Group>
-									</UnstyledButton>
-								</Menu.Target>
-
-								<Menu.Dropdown>
-									<Menu.Label>Account</Menu.Label>
-									<Menu.Item
-										icon={<FiUser size={14} />}
-										component={Link}
-										to='/profile'
-									>
-										Profile
-									</Menu.Item>
-									<Menu.Item
-										icon={<FiMusic size={14} />}
-										component={Link}
-										to='/dashboard'
-									>
-										My Projects
-									</Menu.Item>
-									<Menu.Item
-										icon={<FiLayout size={14} />}
-										component={Link}
-										to='/dashboard'
-									>
-										Dashboard
-									</Menu.Item>
-									<Divider />
-									<Menu.Item
-										icon={<FiLogOut size={14} />}
-										onClick={handleLogout}
-										color='red'
-									>
-										Logout
-									</Menu.Item>
-								</Menu.Dropdown>
-							</Menu>
+											Profile
+										</Link>
+										<button
+											onClick={() => {
+												setProfileMenuOpen(false);
+												handleLogout();
+											}}
+											className='block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-ableton-dark-200 flex items-center'
+										>
+											<FiLogOut
+												className='mr-2'
+												size={16}
+											/>
+											Sign out
+										</button>
+									</div>
+								)}
+							</div>
 						</>
 					) : (
 						<>
-							<Button
-								component={Link}
+							<Link
 								to='/login'
-								variant='subtle'
-								color='white'
-								radius='md'
+								className='text-white hover:text-ableton-blue-300 px-3 py-1.5 rounded-md text-sm'
 							>
 								Log In
-							</Button>
-							<Button
-								component={Link}
+							</Link>
+							<Link
 								to='/register'
-								variant='filled'
-								color='cyan'
-								radius='md'
+								className='bg-ableton-blue-500 hover:bg-ableton-blue-600 text-white px-3 py-1.5 rounded-md text-sm'
 							>
 								Sign Up
-							</Button>
+							</Link>
 						</>
 					)}
-				</Group>
-			</Group>
-		</Paper>
+				</div>
+			</div>
+		</header>
 	);
 };
 

@@ -1,56 +1,44 @@
 import React from 'react';
-import { Text, Container, Group, Anchor } from '@mantine/core';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Footer = () => {
+	const { isAuthenticated } = useAuth();
+	const currentYear = new Date().getFullYear();
+
 	return (
-		<MantineFooter
-			height={60}
-			p='md'
+		<footer
+			className={`border-t border-ableton-dark-300 py-4 px-6 ${
+				isAuthenticated ? 'ml-64' : ''
+			}`}
 		>
-			{' '}
-			// Use the renamed component
-			<Container size='xl'>
-				<Group
-					position='apart'
-					spacing='xl'
-				>
-					<Text
-						size='sm'
-						color='dimmed'
+			<div className='flex flex-col md:flex-row justify-between items-center'>
+				<div className='text-gray-400 text-sm mb-4 md:mb-0'>
+					&copy; {currentYear} WubHub - Version Control for Musicians
+				</div>
+
+				<div className='flex space-x-6'>
+					<Link
+						to='#'
+						className='text-gray-400 hover:text-ableton-blue-400 text-sm'
 					>
-						&copy; {new Date().getFullYear()} WubHub - Version Control for
-						Musicians
-					</Text>
-					<Group
-						spacing='xs'
-						position='right'
-						noWrap
+						Terms of Service
+					</Link>
+					<Link
+						to='#'
+						className='text-gray-400 hover:text-ableton-blue-400 text-sm'
 					>
-						<Anchor
-							size='sm'
-							color='dimmed'
-							href='#'
-						>
-							Terms of Service
-						</Anchor>
-						<Anchor
-							size='sm'
-							color='dimmed'
-							href='#'
-						>
-							Privacy Policy
-						</Anchor>
-						<Anchor
-							size='sm'
-							color='dimmed'
-							href='#'
-						>
-							Contact
-						</Anchor>
-					</Group>
-				</Group>
-			</Container>
-		</MantineFooter>
+						Privacy Policy
+					</Link>
+					<Link
+						to='#'
+						className='text-gray-400 hover:text-ableton-blue-400 text-sm'
+					>
+						Contact
+					</Link>
+				</div>
+			</div>
+		</footer>
 	);
 };
 
