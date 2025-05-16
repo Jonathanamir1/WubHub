@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar/ProjectsList.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiPlus, FiMusic } from 'react-icons/fi';

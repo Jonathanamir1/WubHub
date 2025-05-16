@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar/WorkspacesList.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiFolder, FiLock, FiPlus } from 'react-icons/fi';

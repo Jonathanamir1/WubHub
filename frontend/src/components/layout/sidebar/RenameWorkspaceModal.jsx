@@ -1,93 +1,132 @@
-// src/components/common/ContextMenu.jsx
-import React, { useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiX } from 'react-icons/fi';
+import api from '../../../services/api';
+import Spinner from '../../common/Spinner';
 
-const ContextMenu = ({ x, y, onClose, options }) => {
-	const menuRef = useRef(null);
+const RenameWorkspaceModal = ({ onClose, onWorkspaceRenamed, workspace }) => {
+	const [name, setName] = useState(workspace?.name || '');
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState(null);
+	const inputRef = useRef(null);
 
+	// Focus input on mount
 	useEffect(() => {
-		const handleClickOutside = (event) => {
-			if (menuRef.current && !menuRef.current.contains(event.target)) {
-				onClose();
-			}
-		};
+		if (inputRef.current) {
+			inputRef.current.focus();
+			inputRef.current.select();
+		}
+	}, []);
 
-		const handleEscape = (event) => {
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+
+		if (!name.trim()) {
+			setError('Workspace name cannot be empty');
+			return;
+		}
+
+		try {
+			setLoading(true);
+			setError(null);
+
+			// In a real implementation, this would call the API
+			// Mock the API call for now
+			// const response = await api.updateWorkspace(workspace.id, { name });
+
+			const updatedWorkspace = { ...workspace, name };
+			onWorkspaceRenamed(updatedWorkspace);
+			onClose();
+		} catch (err) {
+			console.error('Error renaming workspace:', err);
+			setError(err.response?.data?.error || 'Failed to rename workspace');
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	// Handle escape key
+	useEffect(() => {
+		const handleEsc = (event) => {
 			if (event.key === 'Escape') {
 				onClose();
 			}
 		};
 
-		document.addEventListener('mousedown', handleClickOutside);
-		document.addEventListener('keydown', handleEscape);
+		window.addEventListener('keydown', handleEsc);
 
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleEscape);
+			window.removeEventListener('keydown', handleEsc);
 		};
 	}, [onClose]);
 
-	// Adjust position if near window edges
-	const adjustedPosition = () => {
-		const padding = 10;
-		const menuWidth = 200; // Approximate width of menu
-		const menuHeight = options.length * 36; // Approximate height based on items
-
-		let adjustedX = x;
-		let adjustedY = y;
-
-		// Check right edge
-		if (x + menuWidth + padding > window.innerWidth) {
-			adjustedX = window.innerWidth - menuWidth - padding;
-		}
-
-		// Check bottom edge
-		if (y + menuHeight + padding > window.innerHeight) {
-			adjustedY = window.innerHeight - menuHeight - padding;
-		}
-
-		return { top: adjustedY, left: adjustedX };
-	};
-
-	return createPortal(
-		<div
-			ref={menuRef}
-			className='bg-ableton-dark-200 border border-ableton-dark-100 rounded-md shadow-lg py-1 z-50 fixed'
-			style={adjustedPosition()}
-		>
-			{options.map((option, index) => (
-				<div
-					key={index}
-					className='px-1'
-				>
-					{option.divider ? (
-						<div className='border-t border-ableton-dark-100 my-1'></div>
-					) : (
-						<button
-							disabled={option.disabled}
-							className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors flex items-center ${
-								option.danger
-									? 'text-red-400 hover:bg-red-900/30'
-									: option.disabled
-									? 'text-gray-500 cursor-not-allowed'
-									: 'text-gray-300 hover:bg-ableton-dark-300'
-							}`}
-							onClick={() => {
-								if (!option.disabled) {
-									option.onClick();
-									onClose();
-								}
-							}}
-						>
-							{option.icon && <span className='mr-2'>{option.icon}</span>}
-							{option.label}
-						</button>
-					)}
+	return (
+		<div className='fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4'>
+			<div className='bg-ableton-dark-300 rounded-lg shadow-xl w-full max-w-md'>
+				<div className='flex justify-between items-center p-4 border-b border-ableton-dark-200'>
+					<h2 className='text-xl font-semibold text-white'>Rename Workspace</h2>
+					<button
+						onClick={onClose}
+						className='text-gray-400 hover:text-white transition-colors'
+						aria-label='Close'
+					>
+						<FiX className='w-5 h-5' />
+					</button>
 				</div>
-			))}
-		</div>,
-		document.body
+
+				<form onSubmit={handleSubmit}>
+					<div className='p-4'>
+						<div className='mb-4'>
+							<label
+								htmlFor='workspace-name'
+								className='block text-sm font-medium text-gray-300 mb-1'
+							>
+								Workspace Name
+							</label>
+							<input
+								ref={inputRef}
+								type='text'
+								id='workspace-name'
+								className='w-full px-3 py-2 rounded-md bg-ableton-dark-200 border border-ableton-dark-100 text-white focus:outline-none focus:ring-1 focus:ring-ableton-blue-500'
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								placeholder='Enter workspace name'
+							/>
+						</div>
+
+						{error && <div className='mb-4 text-red-400 text-sm'>{error}</div>}
+					</div>
+
+					<div className='p-4 bg-ableton-dark-200 rounded-b-lg flex justify-end space-x-2'>
+						<button
+							type='button'
+							onClick={onClose}
+							className='px-4 py-2 rounded-md border border-ableton-dark-100 text-gray-300 hover:bg-ableton-dark-300 transition-colors'
+							disabled={loading}
+						>
+							Cancel
+						</button>
+						<button
+							type='submit'
+							className='px-4 py-2 rounded-md bg-ableton-blue-500 text-white hover:bg-ableton-blue-600 transition-colors flex items-center'
+							disabled={loading}
+						>
+							{loading ? (
+								<>
+									<Spinner
+										size='sm'
+										className='mr-2'
+									/>
+									Renaming...
+								</>
+							) : (
+								'Rename'
+							)}
+						</button>
+					</div>
+				</form>
+			</div>
+		</div>
 	);
 };
 
-export default ContextMenu;
+export default RenameWorkspaceModal;

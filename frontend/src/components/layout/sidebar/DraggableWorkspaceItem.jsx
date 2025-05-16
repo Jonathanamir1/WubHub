@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar/DraggableWorkspaceItem.jsx
 import React, { useRef } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { FiFolder, FiLock } from 'react-icons/fi';

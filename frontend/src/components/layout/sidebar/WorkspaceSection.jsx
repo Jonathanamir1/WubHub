@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar/WorkspaceSection.jsx
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiChevronRight, FiChevronDown, FiPlus } from 'react-icons/fi';

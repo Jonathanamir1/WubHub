@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar/Navigation.jsx
 import React from 'react';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 

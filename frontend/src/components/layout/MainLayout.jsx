@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
-import Sidebar from './Sidebar';
+import Sidebar from './sidebar/Index';
 import { useAuth } from '../../contexts/AuthContext';
 
 const MainLayout = () => {
@@ -10,7 +10,7 @@ const MainLayout = () => {
 
 	return (
 		<div className='flex flex-col min-h-screen bg-ableton-dark-400'>
-			{/* <Header /> */}
+			<Header />
 
 			<div className='flex flex-1'>
 				{isAuthenticated && <Sidebar />}

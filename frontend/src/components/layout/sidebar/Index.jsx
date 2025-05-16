@@ -122,8 +122,28 @@ const SidebarContent = () => {
 
 	const fetchProjects = async (wsId) => {
 		try {
-			const response = await api.getProjects(wsId);
-			setProjects(response.data || []);
+			// In a real implementation, this would be an actual API call
+			// Mock data for now
+			const projectsData = [
+				{
+					id: 1,
+					title: 'Summer EP',
+					description: 'Four-track summer vibes EP',
+					project_type: 'production',
+					version_count: 12,
+					updated_at: '2023-05-12T10:15:00Z',
+				},
+				{
+					id: 2,
+					title: 'Client Mix - Jane Doe',
+					description: "Mixing project for Jane's album",
+					project_type: 'mixing',
+					version_count: 8,
+					updated_at: '2023-05-10T16:45:00Z',
+				},
+			];
+
+			setProjects(projectsData);
 		} catch (err) {
 			console.error('Error fetching projects:', err);
 		}
@@ -398,6 +418,7 @@ const SidebarContent = () => {
 			{/* Modal for creating new workspace */}
 			{showCreateWorkspaceModal && (
 				<CreateWorkspaceModal
+					isOpen={showCreateWorkspaceModal}
 					onClose={() => setShowCreateWorkspaceModal(false)}
 					onWorkspaceCreated={handleWorkspaceCreated}
 				/>
