@@ -21,6 +21,16 @@ Rails.application.routes.draw do
         resources :projects
       end
 
+      # Workspace preferences routes
+      resources :workspace_preferences, only: [:index] do
+        collection do
+          put :update_order
+          put :update_favorites
+          put :update_privacy
+          put :update_collapsed_sections
+        end
+      end
+
       # Project routes
       resources :projects do
         collection do

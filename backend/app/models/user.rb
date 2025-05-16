@@ -39,4 +39,33 @@ class User < ApplicationRecord
     # You could also add more logic here, like filtering by last activity
     projects
   end
+
+  # Add user preferences association
+  has_many :user_preferences, dependent: :destroy
+  
+  # Add a method to get accessible workspaces (owned + shared)
+  def accessible_workspaces
+    # Combine owned workspaces and workspaces shared with the user
+    Workspace.left_joins(:collaborators)
+            .where('workspaces.user_id = ? OR collaborators.user_id = ?', id, id)
+            .distinct
+  end
+  
+  # Include only workspaces that the user owns
+  def owned_workspaces
+    Workspace.where(user_id: id)
+  end
+  
+  # Get all workspace preferences for the user
+  def workspace_preferences
+    UserPreference.get_workspace_preferences(self)
+  end
+  
+  # Find or create a user preference
+  def find_or_create_preference(key, default_value = nil)
+    pref = user_preferences.find_or_initialize_by(key: key)
+    pref.value = default_value if pref.new_record? && default_value.present?
+    pref.save if pref.new_record?
+    pref
+  end
 end
