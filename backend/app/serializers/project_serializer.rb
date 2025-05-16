@@ -1,5 +1,5 @@
 class ProjectSerializer < ActiveModel::Serializer
-  attributes :id, :title, :description, :visibility, :created_at, :updated_at, :workspace_id, :workspace_name, :version_count
+  attributes :id, :title, :description, :visibility, :project_type, :created_at, :updated_at, :workspace_id, :workspace_name, :version_count
 
   def workspace_name
     object.workspace.name

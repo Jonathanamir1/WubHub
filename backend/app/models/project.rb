@@ -1,3 +1,4 @@
+# backend/app/models/project.rb
 class Project < ApplicationRecord
   belongs_to :workspace
   belongs_to :user
@@ -7,4 +8,9 @@ class Project < ApplicationRecord
   
   validates :title, presence: true
   validates :visibility, presence: true, inclusion: { in: ['private', 'public'] }
+  
+  # Add validation for project_type
+  validates :project_type, presence: true, inclusion: { 
+    in: ['production', 'mixing', 'mastering', 'songwriting', 'editing', 'other'] 
+  }
 end

@@ -1,3 +1,4 @@
+# backend/app/controllers/api/v1/projects_controller.rb
 class Api::V1::ProjectsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_workspace, only: [:index, :create]
@@ -60,6 +61,6 @@ class Api::V1::ProjectsController < ApplicationController
   end
 
   def project_params
-    params.require(:project).permit(:title, :description, :visibility)
+    params.require(:project).permit(:title, :description, :visibility, :project_type)
   end
 end

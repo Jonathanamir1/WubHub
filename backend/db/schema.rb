@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_15_102734) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_15_124052) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -60,6 +60,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_15_102734) do
     t.string "visibility"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "project_type", default: "production"
     t.index ["user_id"], name: "index_projects_on_user_id"
     t.index ["workspace_id"], name: "index_projects_on_workspace_id"
   end
@@ -110,7 +111,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_15_102734) do
   create_table "workspaces", force: :cascade do |t|
     t.string "name"
     t.text "description"
-    t.string "workspace_type"
     t.string "visibility"
     t.bigint "user_id", null: false
     t.datetime "created_at", null: false
