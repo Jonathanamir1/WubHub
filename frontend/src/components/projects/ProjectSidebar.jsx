@@ -9,6 +9,8 @@ import {
 	FiUsers,
 	FiClock,
 	FiPlus,
+	FiImage,
+	FiFile,
 } from 'react-icons/fi';
 
 const ProjectSidebar = ({
@@ -32,53 +34,6 @@ const ProjectSidebar = ({
 		}`;
 	};
 
-	// Get nav items based on project type
-	const getProjectTypeNavItems = () => {
-		const navItems = [];
-
-		switch (project.project_type) {
-			case 'songwriting':
-				navItems.push({
-					id: 'songwriting',
-					label: 'Songwriting',
-					icon: <FiFileText className='w-4 h-4 mr-2' />,
-				});
-				break;
-
-			case 'production':
-				navItems.push({
-					id: 'production',
-					label: 'Production',
-					icon: <FiMusic className='w-4 h-4 mr-2' />,
-				});
-				break;
-
-			case 'mixing':
-				navItems.push({
-					id: 'mixing',
-					label: 'Mixing',
-					icon: <FiMusic className='w-4 h-4 mr-2' />,
-				});
-				break;
-
-			case 'mastering':
-				navItems.push({
-					id: 'mastering',
-					label: 'Mastering',
-					icon: <FiMusic className='w-4 h-4 mr-2' />,
-				});
-				break;
-
-			default:
-				// No specific tabs for other project types
-				break;
-		}
-
-		return navItems;
-	};
-
-	const projectTypeNavItems = getProjectTypeNavItems();
-
 	return (
 		<div className='space-y-6'>
 			{/* Project navigation */}
@@ -95,15 +50,19 @@ const ProjectSidebar = ({
 						<FiHome className='w-4 h-4 mr-2' /> Overview
 					</button>
 
-					{projectTypeNavItems.map((item) => (
-						<button
-							key={item.id}
-							className={getNavItemClass(item.id)}
-							onClick={() => setActiveTab(item.id)}
-						>
-							{item.icon} {item.label}
-						</button>
-					))}
+					<button
+						className={getNavItemClass('tracks')}
+						onClick={() => setActiveTab('tracks')}
+					>
+						<FiMusic className='w-4 h-4 mr-2' /> Tracks
+					</button>
+
+					<button
+						className={getNavItemClass('files')}
+						onClick={() => setActiveTab('files')}
+					>
+						<FiFile className='w-4 h-4 mr-2' /> Files
+					</button>
 
 					<button
 						className={getNavItemClass('versions')}

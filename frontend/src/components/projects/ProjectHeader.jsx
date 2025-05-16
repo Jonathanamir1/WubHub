@@ -1,6 +1,6 @@
 // frontend/src/components/projects/ProjectHeader.jsx
 import React from 'react';
-import { FiEdit, FiTrash2, FiClock, FiTag } from 'react-icons/fi';
+import { FiEdit, FiTrash2, FiClock } from 'react-icons/fi';
 
 const ProjectHeader = ({ project, isOwner, onEdit, onDelete }) => {
 	if (!project) return null;
@@ -22,10 +22,6 @@ const ProjectHeader = ({ project, isOwner, onEdit, onDelete }) => {
 					<div className='flex items-center mt-1 space-x-3'>
 						<span className='bg-ableton-blue-500/20 text-ableton-blue-300 border border-ableton-blue-500/30 px-2 py-0.5 rounded-full text-xs'>
 							{project.visibility}
-						</span>
-
-						<span className='bg-ableton-purple-500/20 text-ableton-purple-300 border border-ableton-purple-500/30 px-2 py-0.5 rounded-full text-xs'>
-							{project.project_type}
 						</span>
 
 						<span className='text-gray-400 text-sm flex items-center'>

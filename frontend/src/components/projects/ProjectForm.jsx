@@ -8,7 +8,6 @@ const ProjectForm = ({ initialData, onSubmit, loading, error }) => {
 		title: initialData?.title || '',
 		description: initialData?.description || '',
 		visibility: initialData?.visibility || 'private',
-		project_type: initialData?.project_type || 'production',
 	});
 
 	const handleChange = (e) => {
@@ -67,29 +66,6 @@ const ProjectForm = ({ initialData, onSubmit, loading, error }) => {
 					placeholder='What is this project about?'
 					className='w-full bg-ableton-dark-200 border border-ableton-dark-100 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-ableton-blue-500 placeholder-gray-600 transition-all min-h-[100px]'
 				></textarea>
-			</div>
-
-			<div className='mb-4'>
-				<label
-					htmlFor='project_type'
-					className='block text-sm text-gray-400 mb-1.5'
-				>
-					Project Type
-				</label>
-				<select
-					id='project_type'
-					name='project_type'
-					value={formData.project_type}
-					onChange={handleChange}
-					className='w-full bg-ableton-dark-200 border border-ableton-dark-100 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-ableton-blue-500 transition-all'
-				>
-					<option value='production'>Production</option>
-					<option value='songwriting'>Songwriting</option>
-					<option value='mixing'>Mixing</option>
-					<option value='mastering'>Mastering</option>
-					<option value='editing'>Editing</option>
-					<option value='other'>Other</option>
-				</select>
 			</div>
 
 			<div className='mb-6'>
