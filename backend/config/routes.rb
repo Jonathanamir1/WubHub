@@ -1,3 +1,4 @@
+# backend/config/routes.rb
 Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
@@ -14,7 +15,7 @@ Rails.application.routes.draw do
       # User routes
       resources :users, only: [:show, :update]
 
-      # Workspace routes
+      # Workspace routes with nested projects
       resources :workspaces do
         resources :projects
       end
@@ -34,14 +35,33 @@ Rails.application.routes.draw do
         collection do
           get 'recent'
         end
-        resources :track_versions
+        resources :track_versions, shallow: true
       end
 
-      # Track version routes
-      resources :track_versions do
-        resources :comments
-        resources :track_contents
+      # Track version routes with nested track contents
+      resources :track_versions, only: [:show, :update, :destroy] do
+        resources :track_contents, shallow: true
+        resources :comments, shallow: true
       end
+
+      # Track content routes
+      resources :track_contents, only: [:show, :update, :destroy]
+      
+      # Comment routes
+      resources :comments, only: [:show, :update, :destroy]
+      
+      # Roles (collaborators) routes
+      resources :projects do
+        resources :roles, shallow: true
+      end
+      
+      # Search routes
+      get 'search/projects', to: 'search#projects'
+      get 'search/workspaces', to: 'search#workspaces'
+      get 'search/users', to: 'search#users'
+      
+      # File download routes
+      get 'download/track_content/:id', to: 'download#track_content'
     end
   end
 end

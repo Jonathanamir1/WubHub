@@ -1,2 +1,82 @@
+# backend/app/controllers/api/v1/track_contents_controller.rb
 class Api::V1::TrackContentsController < ApplicationController
+  before_action :authenticate_user!
+  before_action :set_track_version, only: [:index, :create]
+  before_action :set_track_content, only: [:show, :update, :destroy]
+  before_action :authorize_access!, only: [:show]
+  before_action :authorize_modify!, only: [:update, :destroy]
+
+  # GET /api/v1/track_versions/:track_version_id/track_contents
+  def index
+    @track_contents = @track_version.track_contents
+    render json: @track_contents, status: :ok
+  end
+
+  # GET /api/v1/track_contents/:id
+  def show
+    render json: @track_content, status: :ok
+  end
+
+  # POST /api/v1/track_versions/:track_version_id/track_contents
+  def create
+    @track_content = @track_version.track_contents.build(track_content_params)
+
+    if @track_content.save
+      if params[:file].present?
+        @track_content.file.attach(params[:file])
+      end
+      render json: @track_content, status: :created
+    else
+      render json: { errors: @track_content.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  # PATCH/PUT /api/v1/track_contents/:id
+  def update
+    if @track_content.update(track_content_params)
+      render json: @track_content, status: :ok
+    else
+      render json: { errors: @track_content.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  # DELETE /api/v1/track_contents/:id
+  def destroy
+    @track_content.destroy
+    render json: { message: 'Content deleted successfully' }, status: :ok
+  end
+
+  private
+
+  def set_track_version
+    @track_version = TrackVersion.find(params[:track_version_id])
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: 'Track version not found' }, status: :not_found
+  end
+
+  def set_track_content
+    @track_content = TrackContent.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: 'Content not found' }, status: :not_found
+  end
+
+  def authorize_access!
+    @track_version = @track_content.track_version
+    @project = @track_version.project
+    unless @project.user_id == current_user.id || @project.collaborators.include?(current_user)
+      render json: { error: 'You do not have permission to view this content' }, status: :forbidden
+    end
+  end
+
+  def authorize_modify!
+    @track_version = @track_content.track_version
+    @project = @track_version.project
+    unless @project.user_id == current_user.id || (@track_version.user_id == current_user.id)
+      render json: { error: 'You do not have permission to modify this content' }, status: :forbidden
+    end
+  end
+
+  def track_content_params
+    params.require(:track_content).permit(:content_type, :text_content, :title, :description, metadata: {})
+  end
 end

@@ -53,17 +53,35 @@ axiosInstance.interceptors.response.use(
 
 // Auth API endpoints
 const loginUser = (email, password) => {
-	console.log('Login attempt with:', { email, password });
 	return axiosInstance.post('/api/v1/auth/login', { email, password });
 };
 
 const registerUser = (userData) => {
-	console.log('Register attempt with:', userData);
 	return axiosInstance.post('/api/v1/auth/register', userData);
 };
 
 const getCurrentUser = () => {
 	return axiosInstance.get('/api/v1/auth/current');
+};
+
+// User API endpoints
+const getUser = (id) => {
+	return axiosInstance.get(`/api/v1/users/${id}`);
+};
+
+const updateUser = (id, userData) => {
+	return axiosInstance.put(`/api/v1/users/${id}`, { user: userData });
+};
+
+const updateUserAvatar = (id, file) => {
+	const formData = new FormData();
+	formData.append('user[avatar]', file);
+
+	return axiosInstance.put(`/api/v1/users/${id}`, formData, {
+		headers: {
+			'Content-Type': 'multipart/form-data',
+		},
+	});
 };
 
 // Workspace API endpoints
@@ -162,10 +180,8 @@ const getTrackVersions = (projectId) => {
 	return axiosInstance.get(`/api/v1/projects/${projectId}/track_versions`);
 };
 
-const getTrackVersion = (projectId, versionId) => {
-	return axiosInstance.get(
-		`/api/v1/projects/${projectId}/track_versions/${versionId}`
-	);
+const getTrackVersion = (versionId) => {
+	return axiosInstance.get(`/api/v1/track_versions/${versionId}`);
 };
 
 const createTrackVersion = (projectId, versionData) => {
@@ -174,10 +190,132 @@ const createTrackVersion = (projectId, versionData) => {
 	});
 };
 
-const deleteTrackVersion = (projectId, versionId) => {
-	return axiosInstance.delete(
-		`/api/v1/projects/${projectId}/track_versions/${versionId}`
+const updateTrackVersion = (versionId, versionData) => {
+	return axiosInstance.put(`/api/v1/track_versions/${versionId}`, {
+		track_version: versionData,
+	});
+};
+
+const deleteTrackVersion = (versionId) => {
+	return axiosInstance.delete(`/api/v1/track_versions/${versionId}`);
+};
+
+// Track Content API endpoints
+const getTrackContents = (versionId) => {
+	return axiosInstance.get(
+		`/api/v1/track_versions/${versionId}/track_contents`
 	);
+};
+
+const getTrackContent = (contentId) => {
+	return axiosInstance.get(`/api/v1/track_contents/${contentId}`);
+};
+
+const createTrackContent = (versionId, contentData, file) => {
+	const formData = new FormData();
+
+	// Append file if it exists
+	if (file) {
+		formData.append('file', file);
+	}
+
+	// Append track_content data
+	Object.keys(contentData).forEach((key) => {
+		if (key === 'metadata' && contentData[key]) {
+			formData.append(
+				`track_content[${key}]`,
+				JSON.stringify(contentData[key])
+			);
+		} else if (contentData[key] !== undefined && contentData[key] !== null) {
+			formData.append(`track_content[${key}]`, contentData[key]);
+		}
+	});
+
+	return axiosInstance.post(
+		`/api/v1/track_versions/${versionId}/track_contents`,
+		formData,
+		{
+			headers: {
+				'Content-Type': 'multipart/form-data',
+			},
+		}
+	);
+};
+
+const updateTrackContent = (contentId, contentData) => {
+	return axiosInstance.put(`/api/v1/track_contents/${contentId}`, {
+		track_content: contentData,
+	});
+};
+
+const deleteTrackContent = (contentId) => {
+	return axiosInstance.delete(`/api/v1/track_contents/${contentId}`);
+};
+
+// Comment API endpoints
+const getComments = (versionId) => {
+	return axiosInstance.get(`/api/v1/track_versions/${versionId}/comments`);
+};
+
+const createComment = (versionId, commentData) => {
+	return axiosInstance.post(`/api/v1/track_versions/${versionId}/comments`, {
+		comment: commentData,
+	});
+};
+
+const updateComment = (commentId, commentData) => {
+	return axiosInstance.put(`/api/v1/comments/${commentId}`, {
+		comment: commentData,
+	});
+};
+
+const deleteComment = (commentId) => {
+	return axiosInstance.delete(`/api/v1/comments/${commentId}`);
+};
+
+// Role (collaborator) API endpoints
+const getRoles = (projectId) => {
+	return axiosInstance.get(`/api/v1/projects/${projectId}/roles`);
+};
+
+const createRole = (projectId, roleData) => {
+	return axiosInstance.post(`/api/v1/projects/${projectId}/roles`, {
+		role: roleData,
+	});
+};
+
+const updateRole = (roleId, roleData) => {
+	return axiosInstance.put(`/api/v1/roles/${roleId}`, {
+		role: roleData,
+	});
+};
+
+const deleteRole = (roleId) => {
+	return axiosInstance.delete(`/api/v1/roles/${roleId}`);
+};
+
+// Search API endpoints
+const searchProjects = (query) => {
+	return axiosInstance.get(
+		`/api/v1/search/projects?q=${encodeURIComponent(query)}`
+	);
+};
+
+const searchWorkspaces = (query) => {
+	return axiosInstance.get(
+		`/api/v1/search/workspaces?q=${encodeURIComponent(query)}`
+	);
+};
+
+const searchUsers = (query) => {
+	return axiosInstance.get(
+		`/api/v1/search/users?q=${encodeURIComponent(query)}`
+	);
+};
+
+// Download API endpoints
+const getDownloadUrl = (contentId) => {
+	return `${API_URL}/api/v1/download/track_content/${contentId}`;
 };
 
 // Create API object with all functions
@@ -189,6 +327,11 @@ const api = {
 	loginUser,
 	registerUser,
 	getCurrentUser,
+
+	// User endpoints
+	getUser,
+	updateUser,
+	updateUserAvatar,
 
 	// Workspace endpoints
 	getWorkspaces,
@@ -216,7 +359,35 @@ const api = {
 	getTrackVersions,
 	getTrackVersion,
 	createTrackVersion,
+	updateTrackVersion,
 	deleteTrackVersion,
+
+	// Track Content endpoints
+	getTrackContents,
+	getTrackContent,
+	createTrackContent,
+	updateTrackContent,
+	deleteTrackContent,
+
+	// Comment endpoints
+	getComments,
+	createComment,
+	updateComment,
+	deleteComment,
+
+	// Role (collaborator) endpoints
+	getRoles,
+	createRole,
+	updateRole,
+	deleteRole,
+
+	// Search endpoints
+	searchProjects,
+	searchWorkspaces,
+	searchUsers,
+
+	// Download endpoints
+	getDownloadUrl,
 };
 
 export default api;
