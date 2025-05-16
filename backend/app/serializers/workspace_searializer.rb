@@ -1,5 +1,5 @@
 class WorkspaceSerializer < ActiveModel::Serializer
-  attributes :id, :name, :description, :workspace_type, :visibility, :created_at, :updated_at, :project_count
+  attributes :id, :name, :description, :visibility, :created_at, :updated_at, :project_count
 
   def project_count
     # Add error handling to prevent 500 errors

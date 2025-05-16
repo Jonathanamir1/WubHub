@@ -1,4 +1,4 @@
-// frontend/src/components/layout/Sidebar.jsx
+// Updated Sidebar.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
@@ -13,6 +13,7 @@ import {
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import Spinner from '../common/Spinner';
+import CreateWorkspaceModal from '../workspaces/CreateWorkspaceModal';
 
 const Sidebar = () => {
 	const { currentUser } = useAuth();
@@ -25,24 +26,26 @@ const Sidebar = () => {
 	const location = useLocation();
 	const [currentWorkspace, setCurrentWorkspace] = useState(null);
 	const [navigationStack, setNavigationStack] = useState([]);
+	const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] =
+		useState(false);
 
 	useEffect(() => {
-		const fetchWorkspaces = async () => {
-			try {
-				setLoading(true);
-				const response = await api.getWorkspaces();
-				setWorkspaces(response.data || []);
-				setError(null);
-			} catch (err) {
-				console.error('Error fetching workspaces for sidebar:', err);
-				setError('Failed to load workspaces');
-			} finally {
-				setLoading(false);
-			}
-		};
-
 		fetchWorkspaces();
 	}, []);
+
+	const fetchWorkspaces = async () => {
+		try {
+			setLoading(true);
+			const response = await api.getWorkspaces();
+			setWorkspaces(response.data || []);
+			setError(null);
+		} catch (err) {
+			console.error('Error fetching workspaces for sidebar:', err);
+			setError('Failed to load workspaces');
+		} finally {
+			setLoading(false);
+		}
+	};
 
 	useEffect(() => {
 		// Update navigation stack based on URL
@@ -133,7 +136,11 @@ const Sidebar = () => {
 	};
 
 	const handleCreateWorkspace = () => {
-		navigate('/dashboard', { state: { openCreateModal: true } });
+		setShowCreateWorkspaceModal(true);
+	};
+
+	const handleWorkspaceCreated = (newWorkspace) => {
+		setWorkspaces([...workspaces, newWorkspace]);
 	};
 
 	const handleCreateProject = () => {
@@ -203,98 +210,37 @@ const Sidebar = () => {
 	};
 
 	return (
-		<div className='h-screen bg-ableton-dark-300 w-64 fixed left-0 top-0 pt-16 border-r border-ableton-dark-200 overflow-y-auto'>
-			<div className='p-4'>
-				<div className='mb-4'>
-					<Link
-						to='/dashboard'
-						className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-							location.pathname === '/dashboard'
-								? 'bg-ableton-dark-200 text-white'
-								: 'text-gray-300 hover:bg-ableton-dark-200/50'
-						}`}
-					>
-						<FiHome className='w-5 h-5 mr-3' />
-						<span>Dashboard</span>
-					</Link>
-				</div>
+		<>
+			<div className='h-screen bg-ableton-dark-300 w-64 fixed left-0 top-0 pt-16 border-r border-ableton-dark-200 overflow-y-auto'>
+				<div className='p-4'>
+					<div className='mb-4'>
+						<Link
+							to='/dashboard'
+							className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+								location.pathname === '/dashboard'
+									? 'bg-ableton-dark-200 text-white'
+									: 'text-gray-300 hover:bg-ableton-dark-200/50'
+							}`}
+						>
+							<FiHome className='w-5 h-5 mr-3' />
+							<span>Dashboard</span>
+						</Link>
+					</div>
 
-				{/* Breadcrumb navigation */}
-				{renderNavigation()}
+					{/* Breadcrumb navigation */}
+					{renderNavigation()}
 
-				{/* Show appropriate content based on navigation level */}
-				{navigationStack.length === 0 && (
-					<>
-						<div className='flex justify-between items-center mb-3 px-4'>
-							<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
-								Workspaces
-							</h3>
-							<button
-								onClick={handleCreateWorkspace}
-								className='text-gray-400 hover:text-ableton-blue-400 transition-colors'
-								aria-label='Create new workspace'
-							>
-								<FiPlus className='w-5 h-5' />
-							</button>
-						</div>
-
-						<div className='space-y-1'>
-							{loading ? (
-								<div className='flex justify-center py-4'>
-									<Spinner
-										size='sm'
-										color='blue'
-									/>
-								</div>
-							) : error ? (
-								<div className='text-center py-4 text-red-400 text-sm'>
-									{error}
-								</div>
-							) : (
-								<>
-									{workspaces.length === 0 ? (
-										<div className='text-center py-4 text-gray-500 text-sm'>
-											No workspaces found
-										</div>
-									) : (
-										workspaces.map((workspace) => (
-											<Link
-												key={workspace.id}
-												to={`/workspaces/${workspace.id}`}
-												className={`flex items-center justify-between py-2 px-4 rounded-md transition-colors ${
-													workspaceId === workspace.id.toString()
-														? 'bg-ableton-dark-200 text-white'
-														: 'text-gray-300 hover:bg-ableton-dark-200/50'
-												}`}
-											>
-												<div className='flex items-center overflow-hidden'>
-													<FiFolder className='w-4 h-4 mr-3 flex-shrink-0' />
-													<span className='truncate'>{workspace.name}</span>
-												</div>
-												<span className='text-xs px-1.5 py-0.5 rounded-full border bg-gray-500/20 text-gray-300 border-gray-500/30'>
-													{workspace.project_count}
-												</span>
-											</Link>
-										))
-									)}
-								</>
-							)}
-						</div>
-					</>
-				)}
-
-				{/* If we're viewing a workspace, show its projects */}
-				{navigationStack.length === 1 &&
-					navigationStack[0].type === 'workspace' && (
+					{/* Show appropriate content based on navigation level */}
+					{navigationStack.length === 0 && (
 						<>
 							<div className='flex justify-between items-center mb-3 px-4'>
 								<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
-									Projects
+									Workspaces
 								</h3>
 								<button
-									onClick={handleCreateProject}
+									onClick={handleCreateWorkspace}
 									className='text-gray-400 hover:text-ableton-blue-400 transition-colors'
-									aria-label='Create new project'
+									aria-label='Create new workspace'
 								>
 									<FiPlus className='w-5 h-5' />
 								</button>
@@ -308,33 +254,33 @@ const Sidebar = () => {
 											color='blue'
 										/>
 									</div>
+								) : error ? (
+									<div className='text-center py-4 text-red-400 text-sm'>
+										{error}
+									</div>
 								) : (
 									<>
-										{projects.length === 0 ? (
+										{workspaces.length === 0 ? (
 											<div className='text-center py-4 text-gray-500 text-sm'>
-												No projects found
+												No workspaces found
 											</div>
 										) : (
-											projects.map((project) => (
+											workspaces.map((workspace) => (
 												<Link
-													key={project.id}
-													to={`/workspaces/${workspaceId}/projects/${project.id}`}
+													key={workspace.id}
+													to={`/workspaces/${workspace.id}`}
 													className={`flex items-center justify-between py-2 px-4 rounded-md transition-colors ${
-														projectId === project.id.toString()
+														workspaceId === workspace.id.toString()
 															? 'bg-ableton-dark-200 text-white'
 															: 'text-gray-300 hover:bg-ableton-dark-200/50'
 													}`}
 												>
 													<div className='flex items-center overflow-hidden'>
-														<FiMusic className='w-4 h-4 mr-3 flex-shrink-0' />
-														<span className='truncate'>{project.title}</span>
+														<FiFolder className='w-4 h-4 mr-3 flex-shrink-0' />
+														<span className='truncate'>{workspace.name}</span>
 													</div>
-													<span
-														className={`text-xs px-1.5 py-0.5 rounded-full border ${getProjectTypeColor(
-															project.project_type
-														)}`}
-													>
-														{project.project_type}
+													<span className='text-xs px-1.5 py-0.5 rounded-full border bg-gray-500/20 text-gray-300 border-gray-500/30'>
+														{workspace.project_count}
 													</span>
 												</Link>
 											))
@@ -345,112 +291,182 @@ const Sidebar = () => {
 						</>
 					)}
 
-				{/* If we're viewing a project, show project-specific navigation */}
-				{navigationStack.length === 2 &&
-					navigationStack[1].type === 'project' && (
-						<>
-							<div className='mb-3 px-4'>
-								<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
-									Project Navigation
-								</h3>
-							</div>
+					{/* If we're viewing a workspace, show its projects */}
+					{navigationStack.length === 1 &&
+						navigationStack[0].type === 'workspace' && (
+							<>
+								<div className='flex justify-between items-center mb-3 px-4'>
+									<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
+										Projects
+									</h3>
+									<button
+										onClick={handleCreateProject}
+										className='text-gray-400 hover:text-ableton-blue-400 transition-colors'
+										aria-label='Create new project'
+									>
+										<FiPlus className='w-5 h-5' />
+									</button>
+								</div>
 
-							<div className='space-y-1'>
-								<Link
-									to={`/workspaces/${workspaceId}/projects/${projectId}/overview`}
-									className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-										location.pathname.includes('/overview')
-											? 'bg-ableton-dark-200 text-white'
-											: 'text-gray-300 hover:bg-ableton-dark-200/50'
-									}`}
-								>
-									<span>Overview</span>
-								</Link>
-								<Link
-									to={`/workspaces/${workspaceId}/projects/${projectId}/versions`}
-									className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-										location.pathname.includes('/versions')
-											? 'bg-ableton-dark-200 text-white'
-											: 'text-gray-300 hover:bg-ableton-dark-200/50'
-									}`}
-								>
-									<span>Versions</span>
-								</Link>
-								<Link
-									to={`/workspaces/${workspaceId}/projects/${projectId}/collaborators`}
-									className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-										location.pathname.includes('/collaborators')
-											? 'bg-ableton-dark-200 text-white'
-											: 'text-gray-300 hover:bg-ableton-dark-200/50'
-									}`}
-								>
-									<span>Collaborators</span>
-								</Link>
-								<Link
-									to={`/workspaces/${workspaceId}/projects/${projectId}/settings`}
-									className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-										location.pathname.includes('/settings')
-											? 'bg-ableton-dark-200 text-white'
-											: 'text-gray-300 hover:bg-ableton-dark-200/50'
-									}`}
-								>
-									<span>Settings</span>
-								</Link>
-							</div>
-						</>
-					)}
+								<div className='space-y-1'>
+									{loading ? (
+										<div className='flex justify-center py-4'>
+											<Spinner
+												size='sm'
+												color='blue'
+											/>
+										</div>
+									) : (
+										<>
+											{projects.length === 0 ? (
+												<div className='text-center py-4 text-gray-500 text-sm'>
+													No projects found
+												</div>
+											) : (
+												projects.map((project) => (
+													<Link
+														key={project.id}
+														to={`/workspaces/${workspaceId}/projects/${project.id}`}
+														className={`flex items-center justify-between py-2 px-4 rounded-md transition-colors ${
+															projectId === project.id.toString()
+																? 'bg-ableton-dark-200 text-white'
+																: 'text-gray-300 hover:bg-ableton-dark-200/50'
+														}`}
+													>
+														<div className='flex items-center overflow-hidden'>
+															<FiMusic className='w-4 h-4 mr-3 flex-shrink-0' />
+															<span className='truncate'>{project.title}</span>
+														</div>
+														<span
+															className={`text-xs px-1.5 py-0.5 rounded-full border ${getProjectTypeColor(
+																project.project_type
+															)}`}
+														>
+															{project.project_type}
+														</span>
+													</Link>
+												))
+											)}
+										</>
+									)}
+								</div>
+							</>
+						)}
 
-				<div className='mt-8 pt-4 border-t border-ableton-dark-200'>
-					<div className='flex justify-between items-center mb-3 px-4'>
-						<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
-							Tools
-						</h3>
+					{/* If we're viewing a project, show project-specific navigation */}
+					{navigationStack.length === 2 &&
+						navigationStack[1].type === 'project' && (
+							<>
+								<div className='mb-3 px-4'>
+									<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
+										Project Navigation
+									</h3>
+								</div>
+
+								<div className='space-y-1'>
+									<Link
+										to={`/workspaces/${workspaceId}/projects/${projectId}/overview`}
+										className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+											location.pathname.includes('/overview')
+												? 'bg-ableton-dark-200 text-white'
+												: 'text-gray-300 hover:bg-ableton-dark-200/50'
+										}`}
+									>
+										<span>Overview</span>
+									</Link>
+									<Link
+										to={`/workspaces/${workspaceId}/projects/${projectId}/versions`}
+										className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+											location.pathname.includes('/versions')
+												? 'bg-ableton-dark-200 text-white'
+												: 'text-gray-300 hover:bg-ableton-dark-200/50'
+										}`}
+									>
+										<span>Versions</span>
+									</Link>
+									<Link
+										to={`/workspaces/${workspaceId}/projects/${projectId}/collaborators`}
+										className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+											location.pathname.includes('/collaborators')
+												? 'bg-ableton-dark-200 text-white'
+												: 'text-gray-300 hover:bg-ableton-dark-200/50'
+										}`}
+									>
+										<span>Collaborators</span>
+									</Link>
+									<Link
+										to={`/workspaces/${workspaceId}/projects/${projectId}/settings`}
+										className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+											location.pathname.includes('/settings')
+												? 'bg-ableton-dark-200 text-white'
+												: 'text-gray-300 hover:bg-ableton-dark-200/50'
+										}`}
+									>
+										<span>Settings</span>
+									</Link>
+								</div>
+							</>
+						)}
+
+					<div className='mt-8 pt-4 border-t border-ableton-dark-200'>
+						<div className='flex justify-between items-center mb-3 px-4'>
+							<h3 className='text-gray-400 text-sm font-medium uppercase tracking-wider'>
+								Tools
+							</h3>
+						</div>
+
+						<Link
+							to='/dashboard?tab=recent'
+							className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+								location.pathname === '/dashboard' &&
+								location.search.includes('tab=recent')
+									? 'bg-ableton-dark-200 text-white'
+									: 'text-gray-300 hover:bg-ableton-dark-200/50'
+							}`}
+						>
+							<FiMusic className='w-4 h-4 mr-3' />
+							<span>Recent Projects</span>
+						</Link>
+
+						<Link
+							to='/settings'
+							className={`flex items-center py-2 px-4 rounded-md transition-colors ${
+								location.pathname === '/settings'
+									? 'bg-ableton-dark-200 text-white'
+									: 'text-gray-300 hover:bg-ableton-dark-200/50'
+							}`}
+						>
+							<FiSettings className='w-4 h-4 mr-3' />
+							<span>Settings</span>
+						</Link>
 					</div>
 
-					<Link
-						to='/dashboard?tab=recent'
-						className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-							location.pathname === '/dashboard' &&
-							location.search.includes('tab=recent')
-								? 'bg-ableton-dark-200 text-white'
-								: 'text-gray-300 hover:bg-ableton-dark-200/50'
-						}`}
-					>
-						<FiMusic className='w-4 h-4 mr-3' />
-						<span>Recent Projects</span>
-					</Link>
-
-					<Link
-						to='/settings'
-						className={`flex items-center py-2 px-4 rounded-md transition-colors ${
-							location.pathname === '/settings'
-								? 'bg-ableton-dark-200 text-white'
-								: 'text-gray-300 hover:bg-ableton-dark-200/50'
-						}`}
-					>
-						<FiSettings className='w-4 h-4 mr-3' />
-						<span>Settings</span>
-					</Link>
-				</div>
-
-				{/* User info at bottom */}
-				<div className='absolute bottom-0 left-0 right-0 p-4 border-t border-ableton-dark-200 bg-ableton-dark-300'>
-					<div className='flex items-center'>
-						<div className='w-8 h-8 rounded-full bg-ableton-blue-500 flex items-center justify-center text-white font-medium mr-3'>
-							{currentUser?.username?.charAt(0)?.toUpperCase() || 'U'}
-						</div>
-						<div className='overflow-hidden'>
-							<div className='font-medium text-white truncate'>
-								{currentUser?.username || 'User'}
+					{/* User info at bottom */}
+					<div className='absolute bottom-0 left-0 right-0 p-4 border-t border-ableton-dark-200 bg-ableton-dark-300'>
+						<div className='flex items-center'>
+							<div className='w-8 h-8 rounded-full bg-ableton-blue-500 flex items-center justify-center text-white font-medium mr-3'>
+								{currentUser?.username?.charAt(0)?.toUpperCase() || 'U'}
 							</div>
-							<div className='text-xs text-gray-400 truncate'>
-								{currentUser?.email || ''}
+							<div className='overflow-hidden'>
+								<div className='font-medium text-white truncate'>
+									{currentUser?.username || 'User'}
+								</div>
+								<div className='text-xs text-gray-400 truncate'>
+									{currentUser?.email || ''}
+								</div>
 							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
+
+			{/* Create Workspace Modal */}
+			<CreateWorkspaceModal
+				isOpen={showCreateWorkspaceModal}
+				onClose={() => setShowCreateWorkspaceModal(false)}
+				onWorkspaceCreated={handleWorkspaceCreated}
+			/>
+		</>
 	);
 };
 
