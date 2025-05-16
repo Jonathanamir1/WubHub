@@ -1,3 +1,4 @@
+// frontend/src/contexts/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import api from '../services/api';
 
@@ -39,8 +40,9 @@ export const AuthProvider = ({ children }) => {
 			setCurrentUser(response.data.user);
 			return response.data;
 		} catch (err) {
-			setError(err.message || 'Failed to login');
-			throw err;
+			console.error('Login error:', err);
+			setError(err.response?.data?.error || 'Invalid credentials');
+			throw new Error(err.response?.data?.error || 'Failed to login');
 		} finally {
 			setLoading(false);
 		}
@@ -56,8 +58,11 @@ export const AuthProvider = ({ children }) => {
 			setCurrentUser(response.data.user);
 			return response.data;
 		} catch (err) {
-			setError(err.message || 'Failed to register');
-			throw err;
+			console.error('Registration error:', err);
+			setError(err.response?.data?.errors?.join(', ') || 'Registration failed');
+			throw new Error(
+				err.response?.data?.errors?.join(', ') || 'Failed to register'
+			);
 		} finally {
 			setLoading(false);
 		}

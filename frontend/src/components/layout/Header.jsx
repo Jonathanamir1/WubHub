@@ -31,19 +31,6 @@ const Header = () => {
 				<div className='flex items-center space-x-4'>
 					{isAuthenticated ? (
 						<>
-							<button
-								className='bg-ableton-blue-600 hover:bg-ableton-blue-500 text-white px-3 py-1.5 rounded-md text-sm flex items-center'
-								onClick={() =>
-									navigate('/dashboard', { state: { openCreateModal: true } })
-								}
-							>
-								<FiPlus
-									className='mr-1.5'
-									size={16}
-								/>
-								<span className='hidden sm:inline'>New Project</span>
-							</button>
-
 							{/* Profile dropdown */}
 							<div className='relative'>
 								<button

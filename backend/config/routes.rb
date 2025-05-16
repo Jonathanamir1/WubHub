@@ -1,4 +1,3 @@
-# config/routes.rb
 Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
@@ -6,7 +5,6 @@ Rails.application.routes.draw do
       get 'debug', to: 'debug#index'
       get 'debug/current_user', to: 'debug#current_user_info'
       get 'debug/workspaces', to: 'debug#check_workspaces'
-      get 'auth/debug', to: 'auth#debug'
       
       # Authentication routes
       post 'auth/login', to: 'auth#login'
@@ -34,7 +32,7 @@ Rails.application.routes.draw do
       # Project routes
       resources :projects do
         collection do
-          get 'recent' # Add this route for fetching recent projects
+          get 'recent'
         end
         resources :track_versions
       end
@@ -44,9 +42,6 @@ Rails.application.routes.draw do
         resources :comments
         resources :track_contents
       end
-
-      # Direct upload route
-      get '/uploads/:signed_id/*filename', to: 'direct_uploads#show', as: :rails_blob
     end
   end
 end

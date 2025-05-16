@@ -1,3 +1,4 @@
+// frontend/src/components/workspaces/CreateWorkspaceModal.jsx
 import React, { useState } from 'react';
 import { FiX } from 'react-icons/fi';
 import api from '../../services/api';
@@ -35,7 +36,7 @@ const CreateWorkspaceModal = ({ isOpen, onClose, onWorkspaceCreated }) => {
 			onClose();
 		} catch (err) {
 			console.error('Error creating workspace:', err);
-			setError(err.response?.data?.errors?.[0] || 'Failed to create workspace');
+			setError(err.message || 'Failed to create workspace');
 		} finally {
 			setLoading(false);
 		}

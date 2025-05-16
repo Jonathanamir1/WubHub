@@ -10,8 +10,6 @@ const MainLayout = () => {
 
 	return (
 		<div className='flex flex-col min-h-screen bg-ableton-dark-400'>
-			<Header />
-
 			<div className='flex flex-1'>
 				{isAuthenticated && <Sidebar />}
 

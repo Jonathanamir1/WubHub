@@ -1,8 +1,8 @@
+# backend/app/serializers/workspace_serializer.rb
 class WorkspaceSerializer < ActiveModel::Serializer
-  attributes :id, :name, :description, :visibility, :created_at, :updated_at, :project_count
+  attributes :id, :name, :description, :visibility, :created_at, :updated_at, :user_id, :project_count
 
   def project_count
-    # Add error handling to prevent 500 errors
     begin
       object.projects.count
     rescue => e

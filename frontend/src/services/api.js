@@ -1,7 +1,8 @@
+// frontend/src/services/api.js
 import axios from 'axios';
 
-// Change this line to use Vite's environment variable syntax
-const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+// Get base API URL from environment variables - without the /api/v1 suffix
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Create axios instance with default configuration
 const axiosInstance = axios.create({
@@ -30,10 +31,20 @@ axiosInstance.interceptors.response.use(
 	(error) => {
 		const { response } = error;
 
-		if (response && response.status === 401) {
+		if (response) {
 			// If unauthorized, clear token and redirect to login
-			localStorage.removeItem('token');
-			window.location.href = '/login';
+			if (response.status === 401) {
+				localStorage.removeItem('token');
+				window.location.href = '/login';
+			}
+
+			// Handle validation errors
+			if (response.status === 422) {
+				return Promise.reject({
+					...error,
+					message: response.data.errors?.join(', ') || 'Validation failed',
+				});
+			}
 		}
 
 		return Promise.reject(error);
@@ -76,6 +87,38 @@ const updateWorkspace = (id, workspaceData) => {
 
 const deleteWorkspace = (id) => {
 	return axiosInstance.delete(`/api/v1/workspaces/${id}`);
+};
+
+// Workspace preferences endpoints
+const getWorkspacePreferences = () => {
+	return axiosInstance.get('/api/v1/workspace_preferences');
+};
+
+const updateWorkspaceOrder = (workspaceIds) => {
+	return axiosInstance.put('/api/v1/workspace_preferences/update_order', {
+		workspace_ids: workspaceIds,
+	});
+};
+
+const updateFavoriteWorkspaces = (workspaceIds) => {
+	return axiosInstance.put('/api/v1/workspace_preferences/update_favorites', {
+		workspace_ids: workspaceIds,
+	});
+};
+
+const updatePrivateWorkspaces = (workspaceIds) => {
+	return axiosInstance.put('/api/v1/workspace_preferences/update_privacy', {
+		workspace_ids: workspaceIds,
+	});
+};
+
+const updateCollapsedSections = (collapsedSections) => {
+	return axiosInstance.put(
+		'/api/v1/workspace_preferences/update_collapsed_sections',
+		{
+			collapsed_sections: collapsedSections,
+		}
+	);
 };
 
 // Project API endpoints
@@ -153,6 +196,13 @@ const api = {
 	createWorkspace,
 	updateWorkspace,
 	deleteWorkspace,
+
+	// Workspace preferences endpoints
+	getWorkspacePreferences,
+	updateWorkspaceOrder,
+	updateFavoriteWorkspaces,
+	updatePrivateWorkspaces,
+	updateCollapsedSections,
 
 	// Project endpoints
 	getProjects,

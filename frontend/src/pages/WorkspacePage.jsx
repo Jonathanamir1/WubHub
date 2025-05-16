@@ -1,3 +1,4 @@
+// frontend/src/pages/WorkspacePage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -19,6 +20,7 @@ import {
 import { FiPlus, FiUsers, FiSettings, FiAlertCircle } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import CreateProjectModal from '../components/projects/CreateProjectModal';
 
 const WorkspacePage = () => {
 	const { workspaceId } = useParams();
@@ -28,19 +30,32 @@ const WorkspacePage = () => {
 	const [projects, setProjects] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
+	const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
 
 	useEffect(() => {
 		const fetchWorkspace = async () => {
 			try {
 				setLoading(true);
 
-				// In a real implementation, this would be an actual API call
-				// For now, we'll create dummy data
-				const workspaceData = {
+				// Fetch workspace data
+				const workspaceResponse = await api.getWorkspace(workspaceId);
+				setWorkspace(workspaceResponse.data);
+
+				// Fetch projects for this workspace
+				const projectsResponse = await api.getProjects(workspaceId);
+				setProjects(projectsResponse.data || []);
+
+				setError(null);
+			} catch (err) {
+				console.error('Error fetching workspace data:', err);
+				setError('Failed to load workspace. Please try again later.');
+
+				// Fallback to mock data during development
+				const mockWorkspace = {
 					id: parseInt(workspaceId),
 					name: 'Music Production',
 					description: 'Main workspace for production projects',
-					workspace_type: 'production',
+					visibility: 'private',
 					user_id: 1,
 					created_at: '2023-01-15T12:00:00Z',
 					members: [
@@ -50,11 +65,12 @@ const WorkspacePage = () => {
 					],
 				};
 
-				const projectsData = [
+				const mockProjects = [
 					{
 						id: 1,
 						title: 'Summer EP',
 						description: 'Four-track summer vibes EP',
+						project_type: 'production',
 						version_count: 12,
 						updated_at: '2023-05-12T10:15:00Z',
 					},
@@ -62,17 +78,14 @@ const WorkspacePage = () => {
 						id: 2,
 						title: 'Client Mix - Jane Doe',
 						description: "Mixing project for Jane's album",
+						project_type: 'mixing',
 						version_count: 8,
 						updated_at: '2023-05-10T16:45:00Z',
 					},
 				];
 
-				setWorkspace(workspaceData);
-				setProjects(projectsData);
-				setError(null);
-			} catch (err) {
-				console.error('Error fetching workspace:', err);
-				setError('Failed to load workspace. Please try again later.');
+				setWorkspace(mockWorkspace);
+				setProjects(mockProjects);
 			} finally {
 				setLoading(false);
 			}
@@ -80,6 +93,10 @@ const WorkspacePage = () => {
 
 		fetchWorkspace();
 	}, [workspaceId]);
+
+	const handleProjectCreated = (newProject) => {
+		setProjects([...projects, newProject]);
+	};
 
 	if (loading) {
 		return (
@@ -146,7 +163,7 @@ const WorkspacePage = () => {
 							color='blue'
 							mb='sm'
 						>
-							{workspace.workspace_type}
+							{workspace.visibility}
 						</Badge>
 						{workspace.description && <Text>{workspace.description}</Text>}
 					</div>
@@ -189,8 +206,7 @@ const WorkspacePage = () => {
 						mb='md'
 					>
 						<Button
-							component={Link}
-							to={`/workspaces/${workspaceId}/projects/new`}
+							onClick={() => setShowCreateProjectModal(true)}
 							leftIcon={<FiPlus size={16} />}
 						>
 							New Project
@@ -216,7 +232,7 @@ const WorkspacePage = () => {
 										mb='xs'
 									>
 										<Text weight={500}>{project.title}</Text>
-										<Badge>{project.version_count} versions</Badge>
+										<Badge>{project.version_count || 0} versions</Badge>
 									</Group>
 
 									<Text
@@ -279,41 +295,54 @@ const WorkspacePage = () => {
 								</tr>
 							</thead>
 							<tbody>
-								{workspace.members.map((member) => (
-									<tr key={member.id}>
-										<td>
-											<Group>
-												<Avatar
-													size='sm'
-													radius='xl'
-												/>
-												<Text>{member.username}</Text>
-											</Group>
-										</td>
-										<td>
-											<Badge color={member.role === 'owner' ? 'blue' : 'green'}>
-												{member.role}
-											</Badge>
-										</td>
-										{isOwner && member.role !== 'owner' && (
+								{workspace.members &&
+									workspace.members.map((member) => (
+										<tr key={member.id}>
 											<td>
-												<Button
-													compact
-													variant='subtle'
-													color='red'
-												>
-													Remove
-												</Button>
+												<Group>
+													<Avatar
+														size='sm'
+														radius='xl'
+													/>
+													<Text>{member.username}</Text>
+												</Group>
 											</td>
-										)}
-										{isOwner && member.role === 'owner' && <td></td>}
-									</tr>
-								))}
+											<td>
+												<Badge
+													color={member.role === 'owner' ? 'blue' : 'green'}
+												>
+													{member.role}
+												</Badge>
+											</td>
+											{isOwner && member.role !== 'owner' && (
+												<td>
+													<Button
+														compact
+														variant='subtle'
+														color='red'
+													>
+														Remove
+													</Button>
+												</td>
+											)}
+											{isOwner && member.role === 'owner' && <td></td>}
+										</tr>
+									))}
 							</tbody>
 						</Table>
 					</Paper>
 				</Tabs.Panel>
 			</Tabs>
+
+			{/* Create Project Modal */}
+			{showCreateProjectModal && (
+				<CreateProjectModal
+					workspaceId={workspaceId}
+					isOpen={showCreateProjectModal}
+					onClose={() => setShowCreateProjectModal(false)}
+					onProjectCreated={handleProjectCreated}
+				/>
+			)}
 		</Container>
 	);
 };

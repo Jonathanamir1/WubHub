@@ -1,3 +1,4 @@
+// frontend/src/pages/ProjectPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
@@ -13,6 +14,7 @@ import {
 	Modal,
 	Alert,
 	Loader,
+	Avatar,
 } from '@mantine/core';
 import {
 	FiEdit,
@@ -21,7 +23,6 @@ import {
 	FiUsers,
 	FiMusic,
 	FiAlertCircle,
-	FiFolder,
 } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -46,16 +47,27 @@ const ProjectPage = () => {
 			try {
 				setLoading(true);
 
-				// In a real implementation, this would be an actual API call
-				// For now, we'll create dummy data
-				const projectData = {
+				// Fetch project data
+				const response = await api.getProject(workspaceId, projectId);
+				const projectData = response.data;
+
+				setProject(projectData);
+				setIsOwner(projectData.user_id === currentUser?.id);
+				setError(null);
+			} catch (err) {
+				console.error('Error fetching project:', err);
+				setError('Failed to load project. Please try again later.');
+
+				// Fallback to mock data during development
+				const mockProject = {
 					id: parseInt(projectId),
 					title: 'Summer EP',
 					description: 'Four-track summer vibes EP',
 					workspace_id: parseInt(workspaceId),
-					user_id: 1, // Assuming this matches currentUser.id
+					user_id: currentUser?.id || 1, // Simulate ownership
 					created_at: '2023-01-15T12:00:00Z',
 					visibility: 'private',
+					project_type: 'production',
 					track_versions: [
 						{
 							id: 1,
@@ -85,12 +97,8 @@ const ProjectPage = () => {
 					],
 				};
 
-				setProject(projectData);
-				setIsOwner(projectData.user_id === currentUser?.id);
-				setError(null);
-			} catch (err) {
-				console.error('Error fetching project:', err);
-				setError('Failed to load project. Please try again later.');
+				setProject(mockProject);
+				setIsOwner(mockProject.user_id === currentUser?.id);
 			} finally {
 				setLoading(false);
 			}
@@ -102,8 +110,7 @@ const ProjectPage = () => {
 	const handleDeleteVersion = async (versionId) => {
 		if (window.confirm('Are you sure you want to delete this version?')) {
 			try {
-				// Mock API call for version deletion
-				console.log(`Deleting version ${versionId}`);
+				await api.deleteTrackVersion(projectId, versionId);
 
 				// Update state to remove the deleted version
 				setProject((prev) => ({
@@ -119,8 +126,7 @@ const ProjectPage = () => {
 
 	const handleDeleteProject = async () => {
 		try {
-			// Mock API call for project deletion
-			console.log(`Deleting project ${projectId}`);
+			await api.deleteProject(workspaceId, projectId);
 			navigate(`/workspaces/${workspaceId}`);
 		} catch (err) {
 			console.error('Error deleting project:', err);
@@ -191,6 +197,7 @@ const ProjectPage = () => {
 							<Badge color={project.visibility === 'public' ? 'blue' : 'gray'}>
 								{project.visibility}
 							</Badge>
+							<Badge color='cyan'>{project.project_type}</Badge>
 							<Text
 								size='sm'
 								color='dimmed'
@@ -446,18 +453,6 @@ const Table = ({ children, striped }) => (
 	<table style={{ width: '100%', borderCollapse: 'collapse' }}>
 		{children}
 	</table>
-);
-
-const Avatar = ({ size, radius }) => (
-	<div
-		style={{
-			width: size === 'sm' ? '30px' : '40px',
-			height: size === 'sm' ? '30px' : '40px',
-			borderRadius: radius === 'xl' ? '50%' : '4px',
-			backgroundColor: '#e0e0e0',
-			display: 'inline-block',
-		}}
-	/>
 );
 
 export default ProjectPage;

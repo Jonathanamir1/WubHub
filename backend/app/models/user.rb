@@ -44,11 +44,11 @@ class User < ApplicationRecord
   has_many :user_preferences, dependent: :destroy
   
   # Add a method to get accessible workspaces (owned + shared)
+# app/models/user.rb
   def accessible_workspaces
-    # Combine owned workspaces and workspaces shared with the user
-    Workspace.left_joins(:collaborators)
-            .where('workspaces.user_id = ? OR collaborators.user_id = ?', id, id)
-            .distinct
+    # For now, just return owned workspaces
+    # In the future, you could expand this to include workspaces shared with the user
+    self.workspaces
   end
   
   # Include only workspaces that the user owns

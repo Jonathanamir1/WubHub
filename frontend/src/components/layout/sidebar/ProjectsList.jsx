@@ -1,18 +1,68 @@
-import React from 'react';
+// frontend/src/components/layout/sidebar/ProjectsList.jsx
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FiPlus, FiMusic } from 'react-icons/fi';
 import Spinner from '../../common/Spinner';
+import api from '../../../services/api';
 
 const ProjectsList = ({
 	navigationStack,
 	workspaceId,
 	projectId,
-	projects,
-	loading,
 	sidebarCollapsed,
 	handleCreateProject,
 	getProjectTypeColor,
 }) => {
+	const [projects, setProjects] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(null);
+
+	// Fetch projects when workspaceId changes
+	useEffect(() => {
+		if (
+			workspaceId &&
+			navigationStack.length === 1 &&
+			navigationStack[0].type === 'workspace'
+		) {
+			fetchProjects(workspaceId);
+		}
+	}, [workspaceId, navigationStack]);
+
+	const fetchProjects = async (wsId) => {
+		try {
+			setLoading(true);
+			const response = await api.getProjects(wsId);
+			setProjects(response.data || []);
+			setError(null);
+		} catch (err) {
+			console.error('Error fetching projects:', err);
+			setError('Failed to load projects');
+
+			// Fallback to mock data during development
+			const mockProjects = [
+				{
+					id: 1,
+					title: 'Summer EP',
+					description: 'Four-track summer vibes EP',
+					project_type: 'production',
+					version_count: 12,
+					updated_at: '2023-05-12T10:15:00Z',
+				},
+				{
+					id: 2,
+					title: 'Client Mix - Jane Doe',
+					description: "Mixing project for Jane's album",
+					project_type: 'mixing',
+					version_count: 8,
+					updated_at: '2023-05-10T16:45:00Z',
+				},
+			];
+			setProjects(mockProjects);
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	// Only show if we're viewing a workspace
 	if (
 		!(navigationStack.length === 1 && navigationStack[0].type === 'workspace')
@@ -45,6 +95,8 @@ const ProjectsList = ({
 							color='blue'
 						/>
 					</div>
+				) : error ? (
+					<div className='text-center py-4 text-red-500 text-sm'>{error}</div>
 				) : (
 					<>
 						{projects.length === 0 ? (
@@ -68,7 +120,7 @@ const ProjectsList = ({
 											{project.title}
 										</span>
 									</div>
-									{!sidebarCollapsed && (
+									{!sidebarCollapsed && project.project_type && (
 										<span
 											className={`text-xs px-1.5 py-0.5 rounded-full border ${getProjectTypeColor(
 												project.project_type

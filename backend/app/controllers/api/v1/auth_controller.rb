@@ -1,20 +1,10 @@
+# backend/app/controllers/api/v1/auth_controller.rb
 module Api
   module V1
     class AuthController < ApplicationController
-      skip_before_action :authenticate_user!, only: [:login, :register, :debug]
-
-      # Debug method to check parameters
-      def debug
-        render json: {
-          params: params.to_unsafe_h,
-          headers: request.headers.to_h.select { |k, v| k.start_with?('HTTP_') }
-        }
-      end
+      skip_before_action :authenticate_user!, only: [:login, :register]
 
       def login
-        # Log parameters for debugging
-        Rails.logger.info("Login attempt with params: #{params.to_unsafe_h}")
-        
         user = User.find_by(email: params[:email])
 
         if user && user.authenticate(params[:password])
@@ -26,11 +16,6 @@ module Api
         else
           render json: { error: 'Invalid email or password' }, status: :unauthorized
         end
-      rescue => e
-        # Log the error
-        Rails.logger.error("Login error: #{e.message}")
-        Rails.logger.error(e.backtrace.join("\n"))
-        render json: { error: 'An unexpected error occurred' }, status: :internal_server_error
       end
 
       def register
@@ -45,11 +30,6 @@ module Api
         else
           render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
         end
-      rescue => e
-        # Log the error
-        Rails.logger.error("Registration error: #{e.message}")
-        Rails.logger.error(e.backtrace.join("\n"))
-        render json: { error: 'An unexpected error occurred' }, status: :internal_server_error
       end
 
       def current
