@@ -149,9 +149,8 @@ const getRecentProjects = () => {
 };
 
 const getProject = (workspaceId, projectId) => {
-	return axiosInstance.get(
-		`/api/v1/workspaces/${workspaceId}/projects/${projectId}`
-	);
+	// Use the standalone project endpoint instead of the nested one
+	return axiosInstance.get(`/api/v1/projects/${projectId}`);
 };
 
 const createProject = (workspaceId, projectData) => {
@@ -273,7 +272,6 @@ const deleteComment = (commentId) => {
 	return axiosInstance.delete(`/api/v1/comments/${commentId}`);
 };
 
-// Role (collaborator) API endpoints
 const getRoles = (projectId) => {
 	return axiosInstance.get(`/api/v1/projects/${projectId}/roles`);
 };
@@ -292,6 +290,68 @@ const updateRole = (roleId, roleData) => {
 
 const deleteRole = (roleId) => {
 	return axiosInstance.delete(`/api/v1/roles/${roleId}`);
+};
+
+// NEW: Folder API endpoints
+const getRootFolders = (projectId) => {
+	return axiosInstance.get(`/api/v1/projects/${projectId}/folders`);
+};
+
+const getFolder = (projectId, folderId) => {
+	return axiosInstance.get(`/api/v1/projects/${projectId}/folders/${folderId}`);
+};
+
+const createFolder = (projectId, folderData) => {
+	return axiosInstance.post(`/api/v1/projects/${projectId}/folders`, {
+		folder: folderData,
+	});
+};
+
+const updateFolder = (projectId, folderId, folderData) => {
+	return axiosInstance.put(
+		`/api/v1/projects/${projectId}/folders/${folderId}`,
+		{
+			folder: folderData,
+		}
+	);
+};
+
+const deleteFolder = (projectId, folderId) => {
+	return axiosInstance.delete(
+		`/api/v1/projects/${projectId}/folders/${folderId}`
+	);
+};
+
+// NEW: Audio File API endpoints
+const getAudioFiles = (projectId, folderId) => {
+	return axiosInstance.get(
+		`/api/v1/projects/${projectId}/folders/${folderId}/audio_files`
+	);
+};
+
+const getAudioFile = (projectId, folderId, fileId) => {
+	return axiosInstance.get(
+		`/api/v1/projects/${projectId}/folders/${folderId}/audio_files/${fileId}`
+	);
+};
+
+const createAudioFile = (projectId, folderId, formData, config = {}) => {
+	return axiosInstance.post(
+		`/api/v1/projects/${projectId}/folders/${folderId}/audio_files`,
+		formData,
+		{
+			headers: {
+				'Content-Type': 'multipart/form-data',
+			},
+			...config,
+		}
+	);
+};
+
+const deleteAudioFile = (projectId, folderId, fileId) => {
+	return axiosInstance.delete(
+		`/api/v1/projects/${projectId}/folders/${folderId}/audio_files/${fileId}`
+	);
 };
 
 // Search API endpoints
@@ -316,6 +376,10 @@ const searchUsers = (query) => {
 // Download API endpoints
 const getDownloadUrl = (contentId) => {
 	return `${API_URL}/api/v1/download/track_content/${contentId}`;
+};
+
+const getAudioFileDownloadUrl = (fileId) => {
+	return `${API_URL}/api/v1/download/audio_file/${fileId}`;
 };
 
 // Create API object with all functions
@@ -381,6 +445,19 @@ const api = {
 	updateRole,
 	deleteRole,
 
+	// Folder endpoints
+	getRootFolders,
+	getFolder,
+	createFolder,
+	updateFolder,
+	deleteFolder,
+
+	// Audio File endpoints
+	getAudioFiles,
+	getAudioFile,
+	createAudioFile,
+	deleteAudioFile,
+
 	// Search endpoints
 	searchProjects,
 	searchWorkspaces,
@@ -388,6 +465,7 @@ const api = {
 
 	// Download endpoints
 	getDownloadUrl,
+	getAudioFileDownloadUrl,
 };
 
 export default api;

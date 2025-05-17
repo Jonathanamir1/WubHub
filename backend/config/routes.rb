@@ -17,7 +17,25 @@ Rails.application.routes.draw do
 
       # Workspace routes with nested projects
       resources :workspaces do
-        resources :projects
+        resources :projects, only: [:index, :create]
+      end
+
+      # Projects routes - standalone and with nested resources
+      resources :projects, only: [:show, :update, :destroy] do
+        collection do
+          get 'recent'
+        end
+        
+        # Track versions
+        resources :track_versions, shallow: true
+        
+        # Folders and files
+        resources :folders do
+          resources :audio_files
+        end
+        
+        # Roles
+        resources :roles
       end
 
       # Workspace preferences routes
@@ -28,14 +46,6 @@ Rails.application.routes.draw do
           put :update_privacy
           put :update_collapsed_sections
         end
-      end
-
-      # Project routes
-      resources :projects do
-        collection do
-          get 'recent'
-        end
-        resources :track_versions, shallow: true
       end
 
       # Track version routes with nested track contents
@@ -50,11 +60,6 @@ Rails.application.routes.draw do
       # Comment routes
       resources :comments, only: [:show, :update, :destroy]
       
-      # Roles (collaborators) routes
-      resources :projects do
-        resources :roles, shallow: true
-      end
-      
       # Search routes
       get 'search/projects', to: 'search#projects'
       get 'search/workspaces', to: 'search#workspaces'
@@ -62,6 +67,7 @@ Rails.application.routes.draw do
       
       # File download routes
       get 'download/track_content/:id', to: 'download#track_content'
+      get 'download/audio_file/:id', to: 'download#audio_file'
     end
   end
 end

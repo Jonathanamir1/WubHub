@@ -1,3 +1,4 @@
+# backend/config/environments/production.rb
 require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
@@ -31,6 +32,14 @@ Rails.application.configure do
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
+  
+  # URL settings for production
+  host = ENV.fetch('DEFAULT_URL_HOST', 'your-production-domain.com')
+  config.action_mailer.default_url_options = { host: host }
+  config.active_storage.default_url_options = { host: host }
+  
+  # Set Active Storage URLs to be proxied
+  config.active_storage.resolve_model_to_route = :rails_storage_proxy
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil

@@ -6,7 +6,9 @@ class User < ApplicationRecord
   has_many :collaborated_projects, through: :roles, source: :project
   has_many :track_versions, dependent: :destroy
   has_many :comments, dependent: :destroy
-
+  has_many :folders, dependent: :destroy
+  has_many :audio_files, dependent: :destroy
+  
   # Active Storage
   has_one_attached :profile_image
 

@@ -1,9 +1,13 @@
-# backend/app/serializers/track_content_serializer.rb
-class TrackContentSerializer < ActiveModel::Serializer
+# backend/app/serializers/audio_file_serializer.rb
+class AudioFileSerializer < ActiveModel::Serializer
   include Rails.application.routes.url_helpers
   
-  attributes :id, :content_type, :text_content, :title, :description, :created_at, :updated_at, :metadata, :file_url, :file_name, :file_size
-
+  attributes :id, :filename, :file_type, :file_size, :duration, :created_at, :updated_at, :metadata, :waveform_data, :file_url
+  
+  belongs_to :folder
+  belongs_to :user
+  belongs_to :project
+  
   def file_url
     if object.file.attached?
       begin
@@ -24,19 +28,11 @@ class TrackContentSerializer < ActiveModel::Serializer
     end
   end
   
-  def file_name
-    if object.file.attached?
-      object.file.filename.to_s
-    else
-      nil
-    end
+  def file_size
+    object.file.attached? ? object.file.byte_size : object.file_size
   end
   
-  def file_size
-    if object.file.attached?
-      object.file.byte_size
-    else
-      nil
-    end
+  def file_type
+    object.file.attached? ? object.file.content_type : object.file_type
   end
 end
