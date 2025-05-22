@@ -1,10 +1,11 @@
-# backend/spec/models/user_preference_spec.rb
+require 'rails_helper'
+
 RSpec.describe UserPreference, type: :model do
   describe 'validations' do
-    it 'requires user_id to be present' do
-      preference = UserPreference.new(user_id: nil)
+    it 'requires user to be present' do
+      preference = UserPreference.new(user: nil)
       expect(preference).not_to be_valid
-      expect(preference.errors[:user_id]).to include("can't be blank")
+      expect(preference.errors[:user]).to include("must exist")  # ✅ Correct
     end
 
     it 'requires key to be present' do

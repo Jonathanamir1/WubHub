@@ -2,7 +2,7 @@ FactoryBot.define do
   factory :user_preference do
     key { "test_preference" }
     value { "test_value" }
-    association :user
+    association :user  # ← This line is crucial!
 
     trait :workspace_order do
       key { UserPreference::WORKSPACE_ORDER }

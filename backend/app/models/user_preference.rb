@@ -1,4 +1,3 @@
-# backend/app/models/user_preference.rb
 class UserPreference < ApplicationRecord
   belongs_to :user
   
@@ -6,7 +5,6 @@ class UserPreference < ApplicationRecord
   serialize :value, coder: JSON
   
   # Validations
-  validates :user_id, presence: true
   validates :key, presence: true, uniqueness: { scope: :user_id }
   
   # Define common preference keys as constants
