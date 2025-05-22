@@ -1,7 +1,15 @@
 FactoryBot.define do
   factory :role do
-    name { "MyString" }
-    project { nil }
-    user { nil }
+    name { "collaborator" }
+    association :project
+    association :user
+
+    trait :owner do
+      name { "owner" }
+    end
+
+    trait :viewer do
+      name { "viewer" }
+    end
   end
 end

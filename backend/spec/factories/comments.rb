@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :comment do
-    content { "MyText" }
-    user { nil }
-    track_version { nil }
+    content { "This is a test comment" }
+    association :user
+    association :track_version
   end
 end

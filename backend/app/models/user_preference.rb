@@ -3,7 +3,7 @@ class UserPreference < ApplicationRecord
   belongs_to :user
   
   # Store preferences as JSON
-  serialize :value, JSON
+  serialize :value, coder: JSON
   
   # Validations
   validates :user_id, presence: true

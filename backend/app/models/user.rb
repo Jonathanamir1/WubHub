@@ -63,6 +63,10 @@ class User < ApplicationRecord
     UserPreference.get_workspace_preferences(self)
   end
   
+  def display_name
+    name.present? ? name : username
+  end
+
   # Find or create a user preference
   def find_or_create_preference(key, default_value = nil)
     pref = user_preferences.find_or_initialize_by(key: key)

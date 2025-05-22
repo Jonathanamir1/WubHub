@@ -1,8 +1,20 @@
 FactoryBot.define do
   factory :track_content do
-    track_version { nil }
-    content_type { "MyString" }
-    text_content { "MyText" }
-    metadata { "" }
+    sequence(:title) { |n| "Content #{n}" }
+    description { "Test track content" }
+    content_type { "audio" }
+    text_content { "Sample lyrics or notes" }
+    metadata { { "duration" => 180, "format" => "wav" } }
+    association :track_version
+
+    trait :lyrics do
+      content_type { "lyrics" }
+      text_content { "Verse 1: Sample lyrics here..." }
+    end
+
+    trait :audio do
+      content_type { "audio" }
+      text_content { nil }
+    end
   end
 end
