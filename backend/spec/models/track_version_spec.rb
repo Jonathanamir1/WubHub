@@ -1,4 +1,3 @@
-# backend/spec/models/track_version_spec.rb
 require 'rails_helper'
 
 RSpec.describe TrackVersion, type: :model do

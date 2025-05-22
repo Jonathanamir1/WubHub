@@ -1,4 +1,3 @@
-# backend/spec/models/project_spec.rb
 require 'rails_helper'
 
 RSpec.describe Project, type: :model do
