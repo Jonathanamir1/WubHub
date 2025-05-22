@@ -67,6 +67,24 @@ class User < ApplicationRecord
     name.present? ? name : username
   end
 
+  def has_access_to?(resource)
+    self.roles.exists?(roleable: resource)
+
+    case resource
+      when Project
+        self.roles.exists?(roleable: resource.workspace)
+      when TrackVersion
+        self.roles.exists?(roleable: resource.project) ||
+        self.roles.exists?(roleable: resource.project.workspace)
+      when TrackContent
+        self.roles.exists?(roleable: resource.track_version) ||
+        self.roles.exists?(roleable: resource.project) ||
+        self.roles.exists?(roleable: resource.workspace)
+      else
+        false
+    end
+  end
+
   # Find or create a user preference
   def find_or_create_preference(key, default_value = nil)
     pref = user_preferences.find_or_initialize_by(key: key)
