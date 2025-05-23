@@ -3,7 +3,7 @@ class Project < ApplicationRecord
   belongs_to :workspace
   belongs_to :user
   has_many :track_versions, dependent: :destroy
-  has_many :roles, dependent: :destroy
+  has_many :roles, as: :roleable, dependent: :destroy
   has_many :collaborators, through: :roles, source: :user
   has_many :folders, dependent: :destroy
   has_many :audio_files, dependent: :destroy
