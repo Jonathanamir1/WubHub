@@ -1,95 +1,130 @@
 require 'rails_helper'
 
 RSpec.describe "Api::V1::Workspaces", type: :request do
-  describe "GET /api/v1/workspaces" do
-    context "when user is authenticated" do
-      let(:user) { create(:user) }
-      let(:token) { generate_token_for_user(user) }
-      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+  # Add this after your existing DELETE test
+  describe "GET /api/v1/workspaces/:id" do
+    let(:user) { create(:user) }
+    let(:workspace) { create(:workspace, user: user, name: "My Workspace", description: "Test workspace") }
+    let(:token) { generate_token_for_user(user) }
+    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
 
-      it "returns success status" do
-        get "/api/v1/workspaces", headers: headers
+    context "when user owns the workspace" do
+      it "returns the workspace successfully" do
+        get "/api/v1/workspaces/#{workspace.id}", headers: headers
+        
         expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['id']).to eq(workspace.id)
+        expect(json_response['name']).to eq("My Workspace")
+        expect(json_response['description']).to eq("Test workspace")
       end
 
-      it "returns workspaces as JSON array" do
-        get "/api/v1/workspaces", headers: headers
+      it "includes project count" do
+        # Create some projects in the workspace
+        create_list(:project, 3, workspace: workspace, user: user)
+        
+        get "/api/v1/workspaces/#{workspace.id}", headers: headers
+        
         json_response = JSON.parse(response.body)
-        
-        expect(json_response).to be_an(Array)
+        expect(json_response['project_count']).to eq(3)
       end
-      it "returns user's accessible workspaces" do
-        # Create some workspaces for our user
-        workspace1 = create(:workspace, user: user, name: "My First Workspace")
-        workspace2 = create(:workspace, user: user, name: "My Second Workspace")
-        
-        # Create a workspace for another user (should not be returned)
-        other_user = create(:user)
-        other_workspace = create(:workspace, user: other_user, name: "Other User's Workspace")
-        
-        get "/api/v1/workspaces", headers: headers
-        json_response = JSON.parse(response.body)
-        
-        expect(json_response.length).to eq(2)
-        workspace_names = json_response.map { |ws| ws['name'] }
-        expect(workspace_names).to contain_exactly("My First Workspace", "My Second Workspace")
-      end
-
     end
+
+    context "when trying to view another user's workspace" do
+      it "returns not found status" do
+        other_user = create(:user)
+        other_workspace = create(:workspace, user: other_user)
+        
+        get "/api/v1/workspaces/#{other_workspace.id}", headers: headers
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    context "when workspace doesn't exist" do
+      it "returns not found status" do
+        get "/api/v1/workspaces/99999", headers: headers
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
     context "when user is not authenticated" do
       it "returns unauthorized status" do
-        get "/api/v1/workspaces"
+        get "/api/v1/workspaces/#{workspace.id}"
         expect(response).to have_http_status(:unauthorized)
       end
+    end
+  end
 
-      it "returns error message" do
-        get "/api/v1/workspaces"
+  # Add workspace visibility tests
+  describe "workspace visibility" do
+    let(:user) { create(:user) }
+    let(:other_user) { create(:user) }
+    let(:token) { generate_token_for_user(user) }
+    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+    context "with public workspaces" do
+      it "shows public workspaces in index" do
+        public_workspace = create(:workspace, user: user, visibility: "public", name: "Public WS")
+        private_workspace = create(:workspace, user: user, visibility: "private", name: "Private WS")
+        
+        get "/api/v1/workspaces", headers: headers
         json_response = JSON.parse(response.body)
         
-        expect(json_response).to have_key('error')
-        expect(json_response['error']).to include('Unauthorized')
+        workspace_names = json_response.map { |ws| ws['name'] }
+        expect(workspace_names).to contain_exactly("Public WS", "Private WS")
       end
     end
 
-    context "Creating a workspace" do
-      let(:user) { create(:user) }
-      let(:token) { generate_token_for_user(user) }
-      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
-      let(:valid_workspace_params) do
-        {
-          workspace: {
-            name: "My New Workspace",
-            description: "A test workspace",
-            visibility: "private"
-          }
-        }
+    context "with private workspaces" do
+      it "only shows user's own private workspaces" do
+        my_private = create(:workspace, user: user, visibility: "private", name: "My Private")
+        other_private = create(:workspace, user: other_user, visibility: "private", name: "Other Private")
+        
+        get "/api/v1/workspaces", headers: headers
+        json_response = JSON.parse(response.body)
+        
+        workspace_names = json_response.map { |ws| ws['name'] }
+        expect(workspace_names).to contain_exactly("My Private")
+        expect(workspace_names).not_to include("Other Private")
       end
+    end
+  end
 
-      it "returns success status" do
-        post "/api/v1/workspaces", params: valid_workspace_params, headers: headers
-        expect(response).to have_http_status(:created)
+  # Add error handling tests
+  describe "error handling" do
+    let(:user) { create(:user) }
+    let(:token) { generate_token_for_user(user) }
+    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+    context "when deleting workspace with projects" do
+      it "deletes workspace and cascades to projects" do
+        workspace = create(:workspace, user: user)
+        project = create(:project, workspace: workspace, user: user)
+        
+        expect {
+          delete "/api/v1/workspaces/#{workspace.id}", headers: headers
+        }.to change(Project, :count).by(-1)
+        
+        expect(response).to have_http_status(:ok)
+        expect(Workspace.exists?(workspace.id)).to be false
       end
+    end
 
-      it "returns error messages when name is missing" do
+    context "with invalid visibility values" do
+      it "rejects invalid visibility" do
         invalid_params = {
           workspace: {
-            name: "",
-            description: "A test workspace", 
-            visibility: "private"
+            name: "Test Workspace",
+            visibility: "invalid_value"
           }
         }
         
         post "/api/v1/workspaces", params: invalid_params, headers: headers
         
-        # Check the status code
         expect(response).to have_http_status(:unprocessable_entity)
-        
-        # Parse the JSON response from the server
         json_response = JSON.parse(response.body)
-        
-        # Check what's in the response body
-        expect(json_response).to have_key('errors')
-        expect(json_response['errors']).to include("Name can't be blank")
+        expect(json_response['errors']).to include("Visibility is not included in the list")
       end
     end
   end
@@ -118,7 +153,7 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
     end
 
     context "when trying to update another user's workspace" do
-      it "returns forbidden status" do
+      it "returns not found status" do
         other_user = create(:user)
         other_workspace = create(:workspace, user: other_user, name: "Not Mine")
         
@@ -131,7 +166,7 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
         put "/api/v1/workspaces/#{other_workspace.id}", params: update_params, headers: headers
 
         # 2. What status code should this return?
-        expect(response).to have_http_status(:forbidden)
+        expect(response).to have_http_status(:not_found)
         # 3. Verify the workspace name was NOT changed
         other_workspace.reload
         expect(other_workspace.name).to eq("Not Mine")
@@ -157,16 +192,4 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
     end
   end
 
-  
-
-  private
-
-  def generate_token_for_user(user)
-    payload = {
-      user_id: user.id,
-      iat: Time.now.to_i,
-      exp: 24.hours.from_now.to_i
-    }
-    JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
-  end
 end

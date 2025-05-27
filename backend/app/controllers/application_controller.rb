@@ -50,6 +50,7 @@ class ApplicationController < ActionController::API
   end
 
   def jwt_secret
-    Rails.application.credentials.secret_key_base
+    Rails.application.credentials.jwt_secret || 
+      (raise "JWT secret not configured. Please add jwt_secret to Rails credentials.")
   end
 end

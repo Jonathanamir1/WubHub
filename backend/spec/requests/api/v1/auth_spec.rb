@@ -41,7 +41,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
         expect(token).to be_present
         
         # Decode and verify token
-        decoded_token = JWT.decode(token, Rails.application.credentials.secret_key_base, true, { algorithm: 'HS256' })[0]
+        decoded_token = JWT.decode(token, Rails.application.credentials.jwt_secret, true, { algorithm: 'HS256' })[0]
         expect(decoded_token['user_id']).to eq(user.id)
       end
     end
@@ -102,7 +102,7 @@ RSpec.describe "Api::V1::Auth", type: :request do
         expect(token).to be_present
         
         # Decode and verify token
-        decoded_token = JWT.decode(token, Rails.application.credentials.secret_key_base, true, { algorithm: 'HS256' })[0]
+        decoded_token = JWT.decode(token, Rails.application.credentials.jwt_secret, true, { algorithm: 'HS256' })[0]
         expect(decoded_token['user_id']).to be_present
       end
     end
@@ -217,6 +217,11 @@ RSpec.describe "Api::V1::Auth", type: :request do
       iat: Time.now.to_i,
       exp: 24.hours.from_now.to_i
     }
-    JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
+    JWT.encode(payload, jwt_secret, 'HS256')
+  end
+
+  # Add this method to the test (or better yet, create a test helper)
+  def jwt_secret
+    Rails.application.credentials.jwt_secret
   end
 end

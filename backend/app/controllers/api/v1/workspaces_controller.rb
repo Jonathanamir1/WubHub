@@ -4,7 +4,7 @@ module Api
     class WorkspacesController < ApplicationController
       before_action :authenticate_user!
       before_action :set_workspace, only: [:show, :update, :destroy]
-      before_action :authorize_owner!, only: [:update, :destroy]
+      before_action :authorize_owner!, only: [:show, :update, :destroy]
 
       # GET /api/v1/workspaces
       def index
@@ -46,7 +46,7 @@ module Api
       private
 
       def set_workspace
-        @workspace = Workspace.find(params[:id])
+        @workspace = current_user.workspaces.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Workspace not found' }, status: :not_found
       end

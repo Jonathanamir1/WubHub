@@ -588,15 +588,4 @@ RSpec.describe "Api::V1::Comments", type: :request do
       }.to change(Comment, :count).by(5)
     end
   end
-
-  private
-
-  def generate_token_for_user(user)
-    payload = {
-      user_id: user.id,
-      iat: Time.now.to_i,
-      exp: 24.hours.from_now.to_i
-    }
-    JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
-  end
 end

@@ -1,4 +1,3 @@
-# backend/app/controllers/api/v1/auth_controller.rb
 module Api
   module V1
     class AuthController < ApplicationController
@@ -8,7 +7,7 @@ module Api
         user = User.find_by(email: params[:email])
 
         if user && user.authenticate(params[:password])
-          token = generate_token(user)
+          token = generate_token(user)  # This method needs to exist in the controller
           render json: {
             user: UserSerializer.new(user).as_json,
             token: token
@@ -22,7 +21,7 @@ module Api
         user = User.new(user_params)
 
         if user.save
-          token = generate_token(user)
+          token = generate_token(user)  # This method needs to exist in the controller
           render json: {
             user: UserSerializer.new(user).as_json,
             token: token
@@ -44,6 +43,7 @@ module Api
         params.permit(:email, :username, :name, :password, :password_confirmation)
       end
 
+      # ADD THIS METHOD:
       def generate_token(user)
         payload = {
           user_id: user.id,
@@ -51,7 +51,7 @@ module Api
           exp: 24.hours.from_now.to_i
         }
 
-        JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
+        JWT.encode(payload, jwt_secret, 'HS256')
       end
     end
   end

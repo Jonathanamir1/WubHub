@@ -529,15 +529,4 @@ RSpec.describe "Api::V1::Roles", type: :request do
       expect(collaborator.roles.map(&:name)).to contain_exactly("viewer", "collaborator")
     end
   end
-
-  private
-
-  def generate_token_for_user(user)
-    payload = {
-      user_id: user.id,
-      iat: Time.now.to_i,
-      exp: 24.hours.from_now.to_i
-    }
-    JWT.encode(payload, Rails.application.credentials.secret_key_base, 'HS256')
-  end
 end
