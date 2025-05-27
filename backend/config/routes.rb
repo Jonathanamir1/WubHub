@@ -11,6 +11,9 @@ Rails.application.routes.draw do
       post 'auth/register', to: 'auth#register'
       get 'auth/current', to: 'auth#current'
 
+      # User management routes
+      resources :users, only: [:index, :show, :update, :destroy]
+
       # Core workspace/project workflow
       resources :workspaces do
         resources :projects, only: [:index, :create]
