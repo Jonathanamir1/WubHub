@@ -34,8 +34,6 @@ Rails.application.routes.draw do
           resources :audio_files
         end
         
-        # Roles
-        resources :roles
       end
 
       # Workspace preferences routes
@@ -47,6 +45,14 @@ Rails.application.routes.draw do
           put :update_collapsed_sections
         end
       end
+
+            # Nested routes for project-specific role management
+      resources :projects do
+        resources :roles, only: [:index, :create]
+      end
+
+      # Standalone routes for individual role management (polymorphic)
+      resources :roles, only: [:show, :update, :destroy]
 
       # Track version routes with nested track contents
       resources :track_versions, only: [:show, :update, :destroy] do

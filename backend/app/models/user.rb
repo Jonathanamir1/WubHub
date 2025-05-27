@@ -68,20 +68,22 @@ class User < ApplicationRecord
   end
 
   def has_access_to?(resource)
-    self.roles.exists?(roleable: resource)
+    # Check direct access first
+    return true if self.roles.exists?(roleable: resource)
 
+    # Check inherited access from parent resources
     case resource
-      when Project
-        self.roles.exists?(roleable: resource.workspace)
-      when TrackVersion
-        self.roles.exists?(roleable: resource.project) ||
-        self.roles.exists?(roleable: resource.project.workspace)
-      when TrackContent
-        self.roles.exists?(roleable: resource.track_version) ||
-        self.roles.exists?(roleable: resource.project) ||
-        self.roles.exists?(roleable: resource.workspace)
-      else
-        false
+    when Project
+      self.roles.exists?(roleable: resource.workspace)
+    when TrackVersion
+      self.roles.exists?(roleable: resource.project) ||
+      self.roles.exists?(roleable: resource.project.workspace)
+    when TrackContent
+      self.roles.exists?(roleable: resource.track_version) ||
+      self.roles.exists?(roleable: resource.track_version.project) ||
+      self.roles.exists?(roleable: resource.track_version.project.workspace)
+    else
+      false
     end
   end
 

@@ -2,14 +2,7 @@ FactoryBot.define do
   factory :role do
     name { "collaborator" }
     association :user
-
-    trait :for_project do
-      association :roleable, factory: :project
-    end
-
-    trait :for_workspace do
-      association :roleable, factory: :workspace
-    end
+    association :roleable, factory: :project  # Add this back for default
 
     trait :owner do
       name { "owner" }
@@ -17,6 +10,14 @@ FactoryBot.define do
 
     trait :viewer do
       name { "viewer" }
+    end
+
+    trait :workspace_role do
+      association :roleable, factory: :workspace
+    end
+
+    trait :track_version_role do
+      association :roleable, factory: :track_version
     end
   end
 end
