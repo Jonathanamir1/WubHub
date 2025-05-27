@@ -1,10 +1,7 @@
-# backend/app/controllers/api/v1/track_versions_controller.rb
 class Api::V1::TrackVersionsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_project, only: [:index, :create]
   before_action :set_track_version, only: [:show, :update, :destroy]
-  before_action :authorize_access!, only: [:show]
-  before_action :authorize_owner!, only: [:update, :destroy]
 
   # GET /api/v1/projects/:project_id/track_versions
   def index
@@ -12,7 +9,7 @@ class Api::V1::TrackVersionsController < ApplicationController
     render json: @track_versions, status: :ok
   end
 
-  # GET /api/v1/projects/:project_id/track_versions/:id
+  # GET /api/v1/track_versions/:id
   def show
     render json: @track_version, status: :ok
   end
@@ -29,7 +26,7 @@ class Api::V1::TrackVersionsController < ApplicationController
     end
   end
 
-  # PATCH/PUT /api/v1/projects/:project_id/track_versions/:id
+  # PATCH/PUT /api/v1/track_versions/:id
   def update
     if @track_version.update(track_version_params)
       render json: @track_version, status: :ok
@@ -38,7 +35,7 @@ class Api::V1::TrackVersionsController < ApplicationController
     end
   end
 
-  # DELETE /api/v1/projects/:project_id/track_versions/:id
+  # DELETE /api/v1/track_versions/:id
   def destroy
     @track_version.destroy
     render json: { message: 'Track version deleted successfully' }, status: :ok
@@ -47,28 +44,22 @@ class Api::V1::TrackVersionsController < ApplicationController
   private
 
   def set_project
-    @project = Project.find(params[:project_id])
+    @project = current_user.projects.find(params[:project_id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Project not found' }, status: :not_found
   end
 
   def set_track_version
-    @track_version = TrackVersion.find(params[:id])
+    # Allow access if user owns the project OR owns the specific track version
+    @track_version = TrackVersion.joins(:project)
+                                .where(
+                                  "projects.user_id = ? OR track_versions.user_id = ?", 
+                                  current_user.id, 
+                                  current_user.id
+                                )
+                                .find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Track version not found' }, status: :not_found
-  end
-
-  def authorize_access!
-    @project = @track_version.project
-    unless @project.user_id == current_user.id || @project.collaborators.include?(current_user)
-      render json: { error: 'You do not have permission to view this track version' }, status: :forbidden
-    end
-  end
-
-  def authorize_owner!
-    unless @track_version.user_id == current_user.id || @track_version.project.user_id == current_user.id
-      render json: { error: 'You do not have permission to modify this track version' }, status: :forbidden
-    end
   end
 
   def track_version_params
