@@ -3,11 +3,7 @@ class User < ApplicationRecord
   has_many :workspaces, dependent: :destroy
   has_many :projects, dependent: :destroy
   has_many :roles, dependent: :destroy
-  # has_many :collaborated_projects, through: :roles, source: :project
   has_many :track_versions, dependent: :destroy
-  has_many :comments, dependent: :destroy
-  has_many :folders, dependent: :destroy
-  has_many :audio_files, dependent: :destroy
   
   # Active Storage
   has_one_attached :profile_image
@@ -41,9 +37,6 @@ class User < ApplicationRecord
     # You could also add more logic here, like filtering by last activity
     projects
   end
-
-  # Add user preferences association
-  has_many :user_preferences, dependent: :destroy
   
   # Add a method to get accessible workspaces (owned + shared)
 # app/models/user.rb
@@ -58,10 +51,6 @@ class User < ApplicationRecord
     Workspace.where(user_id: id)
   end
   
-  # Get all workspace preferences for the user
-  def workspace_preferences
-    UserPreference.get_workspace_preferences(self)
-  end
   
   def display_name
     name.present? ? name : username
@@ -90,14 +79,5 @@ class User < ApplicationRecord
   def collaborated_projects
     Role.where(user: self, roleable_type: 'Project').includes(:roleable).map(&:roleable)
   end
-
-  # Find or create a user preference
-  def find_or_create_preference(key, default_value = nil)
-    pref = user_preferences.find_or_initialize_by(key: key)
-    pref.value = default_value if pref.new_record? && default_value.present?
-    pref.save if pref.new_record?
-    pref
-  end
-
   
 end

@@ -408,14 +408,6 @@ RSpec.describe "Api::V1::TrackVersions", type: :request do
           delete "/api/v1/track_versions/#{track_version.id}", headers: headers
         }.to change(TrackContent, :count).by(-1)
       end
-
-      it "deletes associated comments" do
-        comment = create(:comment, track_version: track_version)
-        
-        expect {
-          delete "/api/v1/track_versions/#{track_version.id}", headers: headers
-        }.to change(Comment, :count).by(-1)
-      end
     end
 
     context "when user owns the project but not the specific version" do

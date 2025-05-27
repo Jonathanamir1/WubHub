@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_22_161120) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_27_195918) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -40,49 +40,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_22_161120) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
-  end
-
-  create_table "audio_files", force: :cascade do |t|
-    t.string "filename", null: false
-    t.bigint "folder_id", null: false
-    t.bigint "project_id", null: false
-    t.bigint "user_id", null: false
-    t.string "file_type"
-    t.integer "file_size"
-    t.float "duration"
-    t.jsonb "metadata"
-    t.string "waveform_data"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["folder_id", "filename"], name: "index_audio_files_on_folder_id_and_filename", unique: true
-    t.index ["folder_id"], name: "index_audio_files_on_folder_id"
-    t.index ["project_id"], name: "index_audio_files_on_project_id"
-    t.index ["user_id"], name: "index_audio_files_on_user_id"
-  end
-
-  create_table "comments", force: :cascade do |t|
-    t.text "content"
-    t.bigint "user_id", null: false
-    t.bigint "track_version_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["track_version_id"], name: "index_comments_on_track_version_id"
-    t.index ["user_id"], name: "index_comments_on_user_id"
-  end
-
-  create_table "folders", force: :cascade do |t|
-    t.string "name", null: false
-    t.bigint "project_id", null: false
-    t.bigint "user_id", null: false
-    t.bigint "parent_folder_id"
-    t.string "path"
-    t.jsonb "metadata"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["parent_folder_id"], name: "index_folders_on_parent_folder_id"
-    t.index ["project_id", "path"], name: "index_folders_on_project_id_and_path", unique: true
-    t.index ["project_id"], name: "index_folders_on_project_id"
-    t.index ["user_id"], name: "index_folders_on_user_id"
   end
 
   create_table "projects", force: :cascade do |t|
@@ -132,16 +89,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_22_161120) do
     t.index ["user_id"], name: "index_track_versions_on_user_id"
   end
 
-  create_table "user_preferences", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.string "key", null: false
-    t.text "value"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["user_id", "key"], name: "index_user_preferences_on_user_id_and_key", unique: true
-    t.index ["user_id"], name: "index_user_preferences_on_user_id"
-  end
-
   create_table "users", force: :cascade do |t|
     t.string "email"
     t.string "username"
@@ -165,20 +112,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_22_161120) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "audio_files", "folders"
-  add_foreign_key "audio_files", "projects"
-  add_foreign_key "audio_files", "users"
-  add_foreign_key "comments", "track_versions"
-  add_foreign_key "comments", "users"
-  add_foreign_key "folders", "folders", column: "parent_folder_id"
-  add_foreign_key "folders", "projects"
-  add_foreign_key "folders", "users"
   add_foreign_key "projects", "users"
   add_foreign_key "projects", "workspaces"
   add_foreign_key "roles", "users"
   add_foreign_key "track_contents", "track_versions"
   add_foreign_key "track_versions", "projects"
   add_foreign_key "track_versions", "users"
-  add_foreign_key "user_preferences", "users"
   add_foreign_key "workspaces", "users"
 end

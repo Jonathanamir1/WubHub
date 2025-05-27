@@ -28,20 +28,12 @@ RSpec.describe TrackVersion, type: :model do
     it { should belong_to(:project) }
     it { should belong_to(:user) }
     it { should have_many(:track_contents).dependent(:destroy) }
-    it { should have_many(:comments).dependent(:destroy) }
 
     it 'destroys associated track contents when track version is destroyed' do
       track_version = create(:track_version)
       track_content = create(:track_content, track_version: track_version)
       
       expect { track_version.destroy }.to change(TrackContent, :count).by(-1)
-    end
-
-    it 'destroys associated comments when track version is destroyed' do
-      track_version = create(:track_version)
-      comment = create(:comment, track_version: track_version)
-      
-      expect { track_version.destroy }.to change(Comment, :count).by(-1)
     end
   end
 
@@ -184,36 +176,7 @@ RSpec.describe TrackVersion, type: :model do
     end
   end
 
-  describe 'comments relationship' do
-    it 'can have multiple comments' do
-      track_version = create(:track_version)
-      user1 = create(:user)
-      user2 = create(:user)
-      
-      comment1 = create(:comment, track_version: track_version, user: user1)
-      comment2 = create(:comment, track_version: track_version, user: user2)
 
-      expect(track_version.comments).to include(comment1, comment2)
-      expect(track_version.comments.count).to eq(2)
-    end
-
-    it 'can have comments from different users' do
-      track_version = create(:track_version)
-      user1 = create(:user)
-      user2 = create(:user)
-      
-      create(:comment, track_version: track_version, user: user1, content: 'Great track!')
-      create(:comment, track_version: track_version, user: user2, content: 'Needs more bass')
-
-      commenters = track_version.comments.includes(:user).map(&:user)
-      expect(commenters).to include(user1, user2)
-    end
-
-    it 'returns empty collection when no comments exist' do
-      track_version = create(:track_version)
-      expect(track_version.comments).to be_empty
-    end
-  end
 
   describe 'version history and ordering' do
     let(:project) { create(:project) }

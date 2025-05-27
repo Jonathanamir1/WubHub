@@ -44,10 +44,7 @@ RSpec.describe User, type: :model do
     it { should have_many(:workspaces).dependent(:destroy) }
     it { should have_many(:projects).dependent(:destroy) }
     it { should have_many(:roles).dependent(:destroy) }
-    it { should have_many(:collaborated_projects).through(:roles) }
     it { should have_many(:track_versions).dependent(:destroy) }
-    it { should have_many(:comments).dependent(:destroy) }
-    it { should have_many(:user_preferences).dependent(:destroy) }
     it { should have_one_attached(:profile_image) }
   end
 
@@ -81,11 +78,40 @@ RSpec.describe User, type: :model do
       user = create(:user)
       owned_project = create(:project, user: user)
       
-      # Create a project where user is a collaborator
+      # Create a project where user is a collaborator (using polymorphic role)
       other_project = create(:project)
-      create(:role, user: user, project: other_project)
+      create(:role, user: user, roleable: other_project)
       
       expect(user.all_projects).to include(owned_project, other_project)
+    end
+  end
+
+  describe '#collaborated_projects' do
+    it 'returns projects where user has roles' do
+      user = create(:user)
+      
+      # Projects where user is a collaborator
+      project1 = create(:project)
+      project2 = create(:project)
+      create(:role, user: user, roleable: project1, name: 'collaborator')
+      create(:role, user: user, roleable: project2, name: 'viewer')
+      
+      # Project where user has no role (should not appear)
+      project3 = create(:project)
+      
+      # User's own project (should not appear in collaborated_projects)
+      owned_project = create(:project, user: user)
+      
+      collaborated = user.collaborated_projects
+      expect(collaborated).to include(project1, project2)
+      expect(collaborated).not_to include(project3, owned_project)
+    end
+
+    it 'returns empty array when user has no collaboration roles' do
+      user = create(:user)
+      owned_project = create(:project, user: user)
+      
+      expect(user.collaborated_projects).to be_empty
     end
   end
 
@@ -127,33 +153,6 @@ RSpec.describe User, type: :model do
       expect(user.owned_workspaces).not_to include(other_workspace)
     end
   end
-
-  describe '#workspace_preferences' do
-    it 'returns workspace preferences for the user' do
-      user = create(:user)
-      
-      expect(UserPreference).to receive(:get_workspace_preferences).with(user)
-      user.workspace_preferences
-    end
-  end
-
-  describe '#find_or_create_preference' do
-    it 'finds existing preference' do
-      user = create(:user)
-      preference = create(:user_preference, user: user, key: 'test_key', value: 'test_value')
-
-      result = user.find_or_create_preference('test_key')
-      expect(result).to eq(preference)
-    end
-
-    it 'creates new preference with default value' do
-      user = create(:user)
-
-      result = user.find_or_create_preference('new_key', 'default_value')
-      expect(result.key).to eq('new_key')
-      expect(result.value).to eq('default_value')
-      expect(result).to be_persisted
-    end
   end
 
   describe '#display_name' do
@@ -170,6 +169,39 @@ RSpec.describe User, type: :model do
     it 'returns username when name is nil' do
       user = User.new(name: nil, username: 'johndoe')
       expect(user.display_name).to eq('johndoe')
+    end
+  end
+
+  describe 'role-based access' do
+    let(:user) { create(:user) }
+
+    it 'can have roles on different types of resources' do
+      workspace = create(:workspace)
+      project = create(:project)
+      track_version = create(:track_version)
+
+      workspace_role = create(:role, user: user, roleable: workspace, name: 'owner')
+      project_role = create(:role, user: user, roleable: project, name: 'collaborator')
+      version_role = create(:role, user: user, roleable: track_version, name: 'viewer')
+
+      expect(user.roles.count).to eq(3)
+      expect(user.roles.pluck(:roleable_type)).to contain_exactly('Workspace', 'Project', 'TrackVersion')
+    end
+
+    it 'can check access to resources through has_access_to? method' do
+      workspace = create(:workspace)
+      project = create(:project, workspace: workspace)
+      
+      # User has workspace role, should have access to project in that workspace
+      create(:role, user: user, roleable: workspace, name: 'owner')
+      
+      expect(user.has_access_to?(project)).to be true
+    end
+
+    it 'returns false for resources without access' do
+      project = create(:project)
+      
+      expect(user.has_access_to?(project)).to be false
     end
   end
 end

@@ -52,7 +52,7 @@ RSpec.describe Project, type: :model do
 
     it 'destroys associated roles when project is destroyed' do
       project = create(:project)
-      role = create(:role, project: project)
+      role = create(:role, roleable: project)
       
       expect { project.destroy }.to change(Role, :count).by(-1)
     end
@@ -123,20 +123,21 @@ RSpec.describe Project, type: :model do
     let(:collaborator2) { create(:user) }
 
     it 'can have multiple collaborators through roles' do
-      create(:role, project: project, user: collaborator1, name: 'producer')
-      create(:role, project: project, user: collaborator2, name: 'vocalist')
+      create(:role, roleable: project, user: collaborator1, name: 'collaborator')
+      create(:role, roleable: project, user: collaborator2, name: 'viewer')
 
       expect(project.collaborators).to include(collaborator1, collaborator2)
       expect(project.collaborators.count).to eq(2)
     end
 
     it 'can have different role types for collaborators' do
-      producer_role = create(:role, project: project, user: collaborator1, name: 'producer')
-      vocalist_role = create(:role, project: project, user: collaborator2, name: 'vocalist')
+      producer_role = create(:role, roleable: project, user: collaborator1, name: 'collaborator')
+      vocalist_role = create(:role, roleable: project, user: collaborator2, name: 'viewer')
+
 
       expect(project.roles).to include(producer_role, vocalist_role)
-      expect(project.roles.find_by(user: collaborator1).name).to eq('producer')
-      expect(project.roles.find_by(user: collaborator2).name).to eq('vocalist')
+      expect(project.roles.find_by(user: collaborator1).name).to eq('collaborator')
+      expect(project.roles.find_by(user: collaborator2).name).to eq('viewer')
     end
 
     it 'returns empty collection when no collaborators exist' do
