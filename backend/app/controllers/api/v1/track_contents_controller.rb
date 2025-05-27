@@ -1,10 +1,7 @@
-# backend/app/controllers/api/v1/track_contents_controller.rb
 class Api::V1::TrackContentsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_track_version, only: [:index, :create]
   before_action :set_track_content, only: [:show, :update, :destroy]
-  before_action :authorize_access!, only: [:show]
-  before_action :authorize_modify!, only: [:update, :destroy]
 
   # GET /api/v1/track_versions/:track_version_id/track_contents
   def index
@@ -49,31 +46,25 @@ class Api::V1::TrackContentsController < ApplicationController
   private
 
   def set_track_version
-    @track_version = TrackVersion.find(params[:track_version_id])
+    # Only find track versions where user owns the project
+    @track_version = TrackVersion.joins(:project)
+                                .where(projects: { user_id: current_user.id })
+                                .find(params[:track_version_id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Track version not found' }, status: :not_found
   end
 
   def set_track_content
-    @track_content = TrackContent.find(params[:id])
+    # Only find track contents where user owns the project OR the track version
+    @track_content = TrackContent.joins(track_version: :project)
+                                .where(
+                                  "projects.user_id = ? OR track_versions.user_id = ?",
+                                  current_user.id,
+                                  current_user.id
+                                )
+                                .find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Content not found' }, status: :not_found
-  end
-
-  def authorize_access!
-    @track_version = @track_content.track_version
-    @project = @track_version.project
-    unless @project.user_id == current_user.id || @project.collaborators.include?(current_user)
-      render json: { error: 'You do not have permission to view this content' }, status: :forbidden
-    end
-  end
-
-  def authorize_modify!
-    @track_version = @track_content.track_version
-    @project = @track_version.project
-    unless @project.user_id == current_user.id || (@track_version.user_id == current_user.id)
-      render json: { error: 'You do not have permission to modify this content' }, status: :forbidden
-    end
   end
 
   def track_content_params
