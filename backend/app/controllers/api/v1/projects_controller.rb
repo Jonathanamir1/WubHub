@@ -31,7 +31,7 @@ class Api::V1::ProjectsController < ApplicationController
   end
 
   def update
-    if @project.user_id == current_user.id && @project.update(project_params)
+    if @project.update(project_params)
       render json: @project, status: :ok
     else
       render json: { errors: @project.errors.full_messages }, status: :unprocessable_entity
@@ -39,7 +39,7 @@ class Api::V1::ProjectsController < ApplicationController
   end
 
   def destroy
-    if @project.user_id == current_user.id && @project.destroy
+    if @project.destroy
       render json: { message: 'Project deleted successfully' }, status: :ok
     else
       render json: { errors: ['Failed to delete project'] }, status: :unprocessable_entity
@@ -49,17 +49,17 @@ class Api::V1::ProjectsController < ApplicationController
   private
 
   def set_workspace
-    @workspace = Workspace.find(params[:workspace_id])
+    @workspace = current_user.workspaces.find(params[:workspace_id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Workspace not found' }, status: :not_found
   end
 
   def set_project
-    @project = Project.find(params[:id])
+    @project = current_user.projects.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Project not found' }, status: :not_found
   end
-
+  
   def project_params
     params.require(:project).permit(:title, :description, :visibility, :project_type)
   end

@@ -3,7 +3,7 @@ class User < ApplicationRecord
   has_many :workspaces, dependent: :destroy
   has_many :projects, dependent: :destroy
   has_many :roles, dependent: :destroy
-  has_many :collaborated_projects, through: :roles, source: :project
+  # has_many :collaborated_projects, through: :roles, source: :project
   has_many :track_versions, dependent: :destroy
   has_many :comments, dependent: :destroy
   has_many :folders, dependent: :destroy
@@ -85,6 +85,10 @@ class User < ApplicationRecord
     end
   end
 
+  def collaborated_projects
+    Role.where(user: self, roleable_type: 'Project').includes(:roleable).map(&:roleable)
+  end
+
   # Find or create a user preference
   def find_or_create_preference(key, default_value = nil)
     pref = user_preferences.find_or_initialize_by(key: key)
@@ -92,4 +96,6 @@ class User < ApplicationRecord
     pref.save if pref.new_record?
     pref
   end
+
+  
 end

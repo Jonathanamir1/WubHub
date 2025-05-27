@@ -10,4 +10,5 @@ class Project < ApplicationRecord
 
   validates :title, presence: true
   validates :visibility, presence: true, inclusion: { in: ['private', 'public'] }
+
 end
