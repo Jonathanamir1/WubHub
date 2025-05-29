@@ -56,40 +56,6 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
     end
   end
 
-  # Add workspace visibility tests
-  describe "workspace visibility" do
-    let(:user) { create(:user) }
-    let(:other_user) { create(:user) }
-    let(:token) { generate_token_for_user(user) }
-    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
-
-    context "with public workspaces" do
-      it "shows public workspaces in index" do
-        public_workspace = create(:workspace, user: user, visibility: "public", name: "Public WS")
-        private_workspace = create(:workspace, user: user, visibility: "private", name: "Private WS")
-        
-        get "/api/v1/workspaces", headers: headers
-        json_response = JSON.parse(response.body)
-        
-        workspace_names = json_response.map { |ws| ws['name'] }
-        expect(workspace_names).to contain_exactly("Public WS", "Private WS")
-      end
-    end
-
-    context "with private workspaces" do
-      it "only shows user's own private workspaces" do
-        my_private = create(:workspace, user: user, visibility: "private", name: "My Private")
-        other_private = create(:workspace, user: other_user, visibility: "private", name: "Other Private")
-        
-        get "/api/v1/workspaces", headers: headers
-        json_response = JSON.parse(response.body)
-        
-        workspace_names = json_response.map { |ws| ws['name'] }
-        expect(workspace_names).to contain_exactly("My Private")
-        expect(workspace_names).not_to include("Other Private")
-      end
-    end
-  end
 
   # Add error handling tests
   describe "error handling" do
@@ -111,22 +77,6 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
       end
     end
 
-    context "with invalid visibility values" do
-      it "rejects invalid visibility" do
-        invalid_params = {
-          workspace: {
-            name: "Test Workspace",
-            visibility: "invalid_value"
-          }
-        }
-        
-        post "/api/v1/workspaces", params: invalid_params, headers: headers
-        
-        expect(response).to have_http_status(:unprocessable_entity)
-        json_response = JSON.parse(response.body)
-        expect(json_response['errors']).to include("Visibility is not included in the list")
-      end
-    end
   end
 
   describe "PUT /api/v1/workspaces/:id" do
@@ -191,5 +141,8 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
       expect(Workspace.exists?(workspace.id)).to be false
     end
   end
+
+  describe 'privacy association' do
+end
 
 end

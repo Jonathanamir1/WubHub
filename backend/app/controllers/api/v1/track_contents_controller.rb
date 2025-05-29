@@ -47,7 +47,7 @@ class Api::V1::TrackContentsController < ApplicationController
 
   def set_track_version
     # Only find track versions where user owns the project
-    @track_version = TrackVersion.joins(:project)
+    @track_version = current_user.TrackVersion.joins(:project)
                                 .where(projects: { user_id: current_user.id })
                                 .find(params[:track_version_id])
   rescue ActiveRecord::RecordNotFound
@@ -56,7 +56,7 @@ class Api::V1::TrackContentsController < ApplicationController
 
   def set_track_content
     # Only find track contents where user owns the project OR the track version
-    @track_content = TrackContent.joins(track_version: :project)
+    @track_content = current_user.TrackContent.joins(track_version: :project)
                                 .where(
                                   "projects.user_id = ? OR track_versions.user_id = ?",
                                   current_user.id,

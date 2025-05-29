@@ -1,6 +1,6 @@
 # backend/app/serializers/workspace_serializer.rb
 class WorkspaceSerializer < ActiveModel::Serializer
-  attributes :id, :name, :description, :visibility, :created_at, :updated_at, :user_id, :project_count
+  attributes :id, :name, :description, :created_at, :updated_at, :user_id, :project_count
 
   def project_count
     begin

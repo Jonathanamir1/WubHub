@@ -6,4 +6,6 @@ class TrackContent < ApplicationRecord
   
   validates :content_type, presence: true
 
+  has_one :privacy, as: :privatable, dependent: :destroy
+
 end

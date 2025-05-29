@@ -45,6 +45,13 @@ RSpec.describe TrackContent, type: :model do
       expect(track_content.track_version).to eq(track_version)
       expect(track_version.track_contents).to include(track_content)
     end
+    it 'can have a privacy record' do
+      track_content = create(:track_content)
+      privacy = create(:privacy, privatable: track_content)
+      
+      expect(track_content.privacy).to eq(privacy)
+      expect(privacy.privatable).to eq(track_content)
+    end
   end
 
   describe 'content type handling' do

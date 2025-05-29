@@ -2,12 +2,8 @@ FactoryBot.define do
   factory :workspace do
     sequence(:name) { |n| "Workspace #{n}" }
     description { "A test workspace" }
-    visibility { "private" }
     association :user
 
-    trait :public do
-      visibility { "public" }
-    end
 
     trait :with_projects do
       after(:create) do |workspace|

@@ -28,7 +28,13 @@ RSpec.describe TrackVersion, type: :model do
     it { should belong_to(:project) }
     it { should belong_to(:user) }
     it { should have_many(:track_contents).dependent(:destroy) }
-
+    it 'can have a privacy record' do
+      track_version = create(:track_version)
+      privacy = create(:privacy, privatable: track_version)
+      
+      expect(track_version.privacy).to eq(privacy)
+      expect(privacy.privatable).to eq(track_version)
+    end
     it 'destroys associated track contents when track version is destroyed' do
       track_version = create(:track_version)
       track_content = create(:track_content, track_version: track_version)

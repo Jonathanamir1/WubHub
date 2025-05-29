@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_27_195918) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_28_110359) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -42,12 +42,23 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_27_195918) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "privacies", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "privatable_type", null: false
+    t.bigint "privatable_id", null: false
+    t.string "level", default: "inherited", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["privatable_type", "privatable_id"], name: "index_privacies_on_privatable"
+    t.index ["privatable_type", "privatable_id"], name: "index_privacies_on_privatable_type_and_privatable_id", unique: true
+    t.index ["user_id"], name: "index_privacies_on_user_id"
+  end
+
   create_table "projects", force: :cascade do |t|
     t.string "title"
     t.text "description"
     t.bigint "workspace_id", null: false
     t.bigint "user_id", null: false
-    t.string "visibility"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_projects_on_user_id"
@@ -103,7 +114,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_27_195918) do
   create_table "workspaces", force: :cascade do |t|
     t.string "name"
     t.text "description"
-    t.string "visibility", default: "private"
     t.bigint "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -112,6 +122,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_27_195918) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "privacies", "users"
   add_foreign_key "projects", "users"
   add_foreign_key "projects", "workspaces"
   add_foreign_key "roles", "users"

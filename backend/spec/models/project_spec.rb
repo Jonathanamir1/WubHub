@@ -8,28 +8,6 @@ RSpec.describe Project, type: :model do
       expect(project.errors[:title]).to include("can't be blank")
     end
 
-    it 'requires visibility to be present' do
-      project = Project.new(visibility: nil)
-      expect(project).not_to be_valid
-      expect(project.errors[:visibility]).to include("can't be blank")
-    end
-
-    it 'requires visibility to be either private or public' do
-      project = build(:project, visibility: 'invalid')
-      expect(project).not_to be_valid
-      expect(project.errors[:visibility]).to include('is not included in the list')
-    end
-
-    it 'accepts private visibility' do
-      project = build(:project, visibility: 'private')
-      expect(project).to be_valid
-    end
-
-    it 'accepts public visibility' do
-      project = build(:project, visibility: 'public')
-      expect(project).to be_valid
-    end
-
     it 'is valid with all required attributes' do
       project = build(:project)
       expect(project).to be_valid
@@ -43,6 +21,13 @@ RSpec.describe Project, type: :model do
     it { should have_many(:roles).dependent(:destroy) }
     it { should have_many(:collaborators).through(:roles) }
 
+    it 'can have a privacy record' do
+      project = create(:project)
+      privacy = create(:privacy, privatable: project)
+      
+      expect(project.privacy).to eq(privacy)
+      expect(privacy.privatable).to eq(project)
+    end  
     it 'destroys associated track versions when project is destroyed' do
       project = create(:project)
       track_version = create(:track_version, project: project)
@@ -146,37 +131,6 @@ RSpec.describe Project, type: :model do
     end
   end
 
-  describe 'project visibility and access' do
-    let(:workspace) { create(:workspace) }
-    let(:owner) { workspace.user }
-    let(:other_user) { create(:user) }
-
-    context 'private projects' do
-      let(:private_project) { create(:project, workspace: workspace, user: owner, visibility: 'private') }
-
-      it 'is marked as private' do
-        expect(private_project.visibility).to eq('private')
-      end
-
-      it 'can find private projects by visibility' do
-        private_projects = Project.where(visibility: 'private')
-        expect(private_projects).to include(private_project)
-      end
-    end
-
-    context 'public projects' do
-      let(:public_project) { create(:project, workspace: workspace, user: owner, visibility: 'public') }
-
-      it 'is marked as public' do
-        expect(public_project.visibility).to eq('public')
-      end
-
-      it 'can find public projects by visibility' do
-        public_projects = Project.where(visibility: 'public')
-        expect(public_projects).to include(public_project)
-      end
-    end
-  end
 
   describe 'data integrity' do
     it 'maintains referential integrity with workspace' do

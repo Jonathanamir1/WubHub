@@ -82,7 +82,6 @@ RSpec.describe "Api::V1::Projects", type: :request do
           project: {
             title: "My New Project",
             description: "A test project",
-            visibility: "private"
           }
         }
       end
@@ -107,7 +106,6 @@ RSpec.describe "Api::V1::Projects", type: :request do
         
         expect(json_response['title']).to eq("My New Project")
         expect(json_response['description']).to eq("A test project")
-        expect(json_response['visibility']).to eq("private")
       end
 
       it "returns error when title is missing" do
@@ -115,7 +113,6 @@ RSpec.describe "Api::V1::Projects", type: :request do
           project: {
             title: "",
             description: "A test project",
-            visibility: "private"
           }
         }
         
@@ -128,23 +125,6 @@ RSpec.describe "Api::V1::Projects", type: :request do
         expect(json_response['errors']).to include("Title can't be blank")
       end
 
-      it "returns error when visibility is invalid" do
-        invalid_params = {
-          project: {
-            title: "My New Project",
-            description: "A test project",
-            visibility: "invalid_value"
-          }
-        }
-        
-        post "/api/v1/workspaces/#{workspace.id}/projects", params: invalid_params, headers: headers
-        
-        expect(response).to have_http_status(:unprocessable_entity)
-        
-        json_response = JSON.parse(response.body)
-        expect(json_response).to have_key('errors')
-        expect(json_response['errors']).to include("Visibility is not included in the list")
-      end
 
       it "sets user automatically to current user" do
         post "/api/v1/workspaces/#{workspace.id}/projects", params: valid_project_params, headers: headers
@@ -173,7 +153,6 @@ RSpec.describe "Api::V1::Projects", type: :request do
           project: {
             title: "My New Project",
             description: "A test project",
-            visibility: "private"
           }
         }
       end

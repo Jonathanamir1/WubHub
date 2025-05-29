@@ -8,27 +8,6 @@ RSpec.describe Workspace, type: :model do
       expect(workspace.errors[:name]).to include("can't be blank")
     end
 
-    it 'requires visibility to be present' do
-      workspace = Workspace.new(visibility: nil)
-      expect(workspace).not_to be_valid
-      expect(workspace.errors[:visibility]).to include("can't be blank")
-    end
-
-    it 'requires visibility to be either private or public' do
-      workspace = build(:workspace, visibility: 'invalid')
-      expect(workspace).not_to be_valid
-      expect(workspace.errors[:visibility]).to include('is not included in the list')
-    end
-
-    it 'accepts private visibility' do
-      workspace = build(:workspace, visibility: 'private')
-      expect(workspace).to be_valid
-    end
-
-    it 'accepts public visibility' do
-      workspace = build(:workspace, visibility: 'public')
-      expect(workspace).to be_valid
-    end
 
     it 'is valid with all required attributes' do
       workspace = build(:workspace)
@@ -49,25 +28,6 @@ RSpec.describe Workspace, type: :model do
   end
 
 
-
-  describe 'scopes and queries' do
-    let(:user) { create(:user) }
-    let!(:private_workspace) { create(:workspace, visibility: 'private', user: user) }
-    let!(:public_workspace) { create(:workspace, visibility: 'public', user: user) }
-
-    it 'can find workspaces by visibility' do
-      private_workspaces = Workspace.where(visibility: 'private')
-      public_workspaces = Workspace.where(visibility: 'public')
-
-      expect(private_workspaces).to include(private_workspace)
-      expect(public_workspaces).to include(public_workspace)
-    end
-
-    it 'can find workspaces by user' do
-      user_workspaces = user.workspaces
-      expect(user_workspaces).to include(private_workspace, public_workspace)
-    end
-  end
 
   describe 'project relationship' do
     it 'can have multiple projects' do
@@ -144,24 +104,28 @@ RSpec.describe Workspace, type: :model do
       expect(workspace.name.length).to eq(1000)
     end
   end
-
-  describe 'workspace queries for user access' do
-    let(:user1) { create(:user) }
-    let(:user2) { create(:user) }
-    let!(:user1_private_workspace) { create(:workspace, user: user1, visibility: 'private') }
-    let!(:user1_public_workspace) { create(:workspace, user: user1, visibility: 'public') }
-    let!(:user2_workspace) { create(:workspace, user: user2, visibility: 'private') }
-
-    it 'user can access their own workspaces' do
-      user1_workspaces = user1.workspaces
-      expect(user1_workspaces).to include(user1_private_workspace, user1_public_workspace)
-      expect(user1_workspaces).not_to include(user2_workspace)
-    end
-
-    it 'can find public workspaces from all users' do
-      public_workspaces = Workspace.where(visibility: 'public')
-      expect(public_workspaces).to include(user1_public_workspace)
-      expect(public_workspaces).not_to include(user1_private_workspace, user2_workspace)
-    end
+    it 'can have a privacy record' do
+    workspace = create(:workspace)
+    privacy = create(:privacy, privatable: workspace)
+    
+    expect(workspace.privacy).to eq(privacy)
+    expect(privacy.privatable).to eq(workspace)
   end
+end
+
+describe 'privatable type validation' do
+  it 'only allows specific model types to have privacy' do
+    user = create(:user)
+    
+    # This should fail - User shouldn't have privacy
+    invalid_privacy = Privacy.new(user: user, privatable: user, level: 'private')
+    expect(invalid_privacy).not_to be_valid
+    expect(invalid_privacy.errors[:privatable_type]).to include('is not included in the list')
+  end
+  
+  # it 'allows valid model types to have privacy' do
+  #   workspace = create(:workspace)
+  #   valid_privacy = Privacy.new(user: create(:user), privatable: workspace, level: 'private')
+  #   expect(valid_privacy).to be_valid
+  # end
 end

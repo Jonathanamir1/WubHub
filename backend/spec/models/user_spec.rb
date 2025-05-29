@@ -153,8 +153,6 @@ RSpec.describe User, type: :model do
       expect(user.owned_workspaces).not_to include(other_workspace)
     end
   end
-  end
-
   describe '#display_name' do
     it 'returns name when name is present' do
       user = User.new(name: 'John Doe', username: 'johndoe')

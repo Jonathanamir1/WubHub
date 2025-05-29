@@ -6,7 +6,8 @@ class Project < ApplicationRecord
   has_many :roles, as: :roleable, dependent: :destroy
   has_many :collaborators, through: :roles, source: :user
 
-  validates :title, presence: true
-  validates :visibility, presence: true, inclusion: { in: ['private', 'public'] }
+  has_one :privacy, as: :privatable, dependent: :destroy
 
+
+  validates :title, presence: true
 end
