@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_28_110359) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_30_082716) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -84,7 +84,9 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_28_110359) do
     t.datetime "updated_at", null: false
     t.string "title"
     t.text "description"
+    t.bigint "user_id", null: false
     t.index ["track_version_id"], name: "index_track_contents_on_track_version_id"
+    t.index ["user_id"], name: "index_track_contents_on_user_id"
   end
 
   create_table "track_versions", force: :cascade do |t|
@@ -127,6 +129,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_28_110359) do
   add_foreign_key "projects", "workspaces"
   add_foreign_key "roles", "users"
   add_foreign_key "track_contents", "track_versions"
+  add_foreign_key "track_contents", "users"
   add_foreign_key "track_versions", "projects"
   add_foreign_key "track_versions", "users"
   add_foreign_key "workspaces", "users"

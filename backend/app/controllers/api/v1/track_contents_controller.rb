@@ -17,6 +17,7 @@ class Api::V1::TrackContentsController < ApplicationController
   # POST /api/v1/track_versions/:track_version_id/track_contents
   def create
     @track_content = @track_version.track_contents.build(track_content_params)
+    @track_content.user = current_user  # ← Add this line
 
     if @track_content.save
       if params[:file].present?
@@ -46,19 +47,18 @@ class Api::V1::TrackContentsController < ApplicationController
   private
 
   def set_track_version
-    # Only find track versions where user owns the project
-    @track_version = current_user.TrackVersion.joins(:project)
+    @track_version = current_user.track_versions.joins(:project)
                                 .where(projects: { user_id: current_user.id })
                                 .find(params[:track_version_id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Track version not found' }, status: :not_found
   end
 
-  def set_track_content
-    # Only find track contents where user owns the project OR the track version
-    @track_content = current_user.TrackContent.joins(track_version: :project)
+  def set_track_content  # ← Make sure this method exists
+    @track_content = TrackContent.joins(track_version: :project)
                                 .where(
-                                  "projects.user_id = ? OR track_versions.user_id = ?",
+                                  "projects.user_id = ? OR track_versions.user_id = ? OR track_contents.user_id = ?",
+                                  current_user.id,
                                   current_user.id,
                                   current_user.id
                                 )
@@ -66,6 +66,7 @@ class Api::V1::TrackContentsController < ApplicationController
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Content not found' }, status: :not_found
   end
+
 
   def track_content_params
     params.require(:track_content).permit(:content_type, :text_content, :title, :description, metadata: {})

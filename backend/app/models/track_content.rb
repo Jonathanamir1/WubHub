@@ -1,4 +1,6 @@
 class TrackContent < ApplicationRecord
+  include Privatable
+  belongs_to :user
   belongs_to :track_version
   
   # Add Active Storage attachment

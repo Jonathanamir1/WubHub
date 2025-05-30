@@ -62,6 +62,9 @@ class User < ApplicationRecord
 
     # Check inherited access from parent resources
     case resource
+    when Workspace
+      # For workspaces, only direct roles matter (no inheritance)
+      false  # Already checked above
     when Project
       self.roles.exists?(roleable: resource.workspace)
     when TrackVersion

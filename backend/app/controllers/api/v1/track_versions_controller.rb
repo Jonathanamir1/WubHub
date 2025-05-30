@@ -50,14 +50,9 @@ class Api::V1::TrackVersionsController < ApplicationController
   end
 
   def set_track_version
-    # Allow access if user owns the project OR owns the specific track version
-    @track_version = TrackVersion.joins(:project)
-                                .where(
-                                  "projects.user_id = ? OR track_versions.user_id = ?", 
-                                  current_user.id, 
-                                  current_user.id
-                                )
-                                .find(params[:id])
+    @track_version = current_user.track_versions.joins(:project)
+                                .where(projects: { user_id: current_user.id })
+                                .find(params[:track_version_id])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Track version not found' }, status: :not_found
   end

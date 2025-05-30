@@ -1,5 +1,7 @@
 # backend/app/models/project.rb
 class Project < ApplicationRecord
+  include Privatable
+  
   belongs_to :workspace
   belongs_to :user
   has_many :track_versions, dependent: :destroy
@@ -10,4 +12,5 @@ class Project < ApplicationRecord
 
 
   validates :title, presence: true
+
 end
