@@ -92,6 +92,5 @@ RSpec.describe Role, type: :model do
 
       expect(user.has_access_to?(track_content)).to be true 
     end
-end
-
+  end
 end

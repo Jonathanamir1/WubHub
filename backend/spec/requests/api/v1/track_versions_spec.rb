@@ -454,4 +454,102 @@ RSpec.describe "Api::V1::TrackVersions", type: :request do
       end
     end
   end
+
+  describe "workspace collaboration access" do
+    let(:artist) { create(:user) }
+    let(:producer) { create(:user) }
+    let(:studio) { create(:workspace, user: artist) }
+    let(:album) { create(:project, workspace: studio, user: artist) }
+    let(:demo) { create(:track_version, project: album, user: artist, title: "Demo V1") }
+
+    context "workspace members can access track versions" do
+      let(:token) { generate_token_for_user(producer) }
+      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+      it "allows workspace collaborators to view track versions" do
+        # Producer joins the studio
+        create(:role, user: producer, roleable: studio, name: 'collaborator')
+        
+        # Reload objects to pick up new associations
+        studio.reload
+        album.reload
+        demo.reload
+        
+        # Producer should see track versions in the album
+        get "/api/v1/projects/#{album.id}/track_versions", headers: headers
+        expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        titles = json_response.map { |v| v['title'] }
+        expect(titles).to include("Demo V1")
+      end
+
+      it "allows workspace collaborators to view individual track versions" do
+        create(:role, user: producer, roleable: studio, name: 'collaborator')
+        
+        get "/api/v1/track_versions/#{demo.id}", headers: headers
+        expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['title']).to eq("Demo V1")
+      end
+    end
+  end
+
+  describe "private track version workflow" do
+    let(:artist) { create(:user) }
+    let(:producer) { create(:user) }
+    let(:studio) { create(:workspace, user: artist) }
+    let(:album) { create(:project, workspace: studio, user: artist) }
+    let(:demo) { create(:track_version, project: album, user: artist, title: "Private Demo") }
+
+    context "private work-in-progress versions" do
+      let(:token) { generate_token_for_user(producer) }
+      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+      it "hides private track versions from workspace members" do
+        create(:role, user: producer, roleable: studio, name: 'collaborator')
+        
+        # Artist sets demo to private (work in progress)
+        create(:privacy, privatable: demo, user: artist, level: 'private')
+        demo.reload
+        
+        # Producer should not see private demo
+        get "/api/v1/projects/#{album.id}/track_versions", headers: headers
+        json_response = JSON.parse(response.body)
+        titles = json_response.map { |v| v['title'] }
+        expect(titles).not_to include("Private Demo")
+        
+        # Producer should not access private demo directly
+        get "/api/v1/track_versions/#{demo.id}", headers: headers
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+  end
+
+  describe "public track version sharing" do
+    let(:artist) { create(:user) }
+    let(:fan) { create(:user) }
+    let(:studio) { create(:workspace, user: artist) }
+    let(:album) { create(:project, workspace: studio, user: artist) }
+    let(:single) { create(:track_version, project: album, user: artist, title: "Hit Single") }
+
+    context "public track versions for promotion" do
+      let(:token) { generate_token_for_user(fan) }
+      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+      it "allows public access to track versions via direct link" do
+        # Artist makes single public for promotion
+        create(:privacy, privatable: single, user: artist, level: 'public')
+        single.reload
+        
+        # Fan should access public single directly
+        get "/api/v1/track_versions/#{single.id}", headers: headers
+        expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['title']).to eq("Hit Single")
+      end
+    end
+  end
 end

@@ -5,8 +5,11 @@ class Api::V1::TrackContentsController < ApplicationController
 
   # GET /api/v1/track_versions/:track_version_id/track_contents
   def index
-    @track_contents = @track_version.track_contents
-    render json: @track_contents, status: :ok
+    # @track_version is already set and access-checked by set_track_version
+    all_track_contents = @track_version.track_contents
+    accessible_track_contents = all_track_contents.select { |tc| tc.accessible_by?(current_user) }
+    
+    render json: accessible_track_contents, status: :ok
   end
 
   # GET /api/v1/track_contents/:id
@@ -47,22 +50,21 @@ class Api::V1::TrackContentsController < ApplicationController
   private
 
   def set_track_version
-    @track_version = current_user.track_versions.joins(:project)
-                                .where(projects: { user_id: current_user.id })
-                                .find(params[:track_version_id])
+    @track_version = TrackVersion.find(params[:track_version_id])
+    
+    unless @track_version.accessible_by?(current_user)
+      render json: { error: 'Track version not found' }, status: :not_found
+    end
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Track version not found' }, status: :not_found
   end
 
-  def set_track_content  # ← Make sure this method exists
-    @track_content = TrackContent.joins(track_version: :project)
-                                .where(
-                                  "projects.user_id = ? OR track_versions.user_id = ? OR track_contents.user_id = ?",
-                                  current_user.id,
-                                  current_user.id,
-                                  current_user.id
-                                )
-                                .find(params[:id])
+  def set_track_content
+    @track_content = TrackContent.find(params[:id])
+    
+    unless @track_content.accessible_by?(current_user)
+      render json: { error: 'Content not found' }, status: :not_found
+    end
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Content not found' }, status: :not_found
   end

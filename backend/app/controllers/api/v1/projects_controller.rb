@@ -2,10 +2,14 @@ class Api::V1::ProjectsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_workspace, only: [:index, :create]
   before_action :set_project, only: [:show, :update, :destroy]
+  before_action :authorize_project_access!, only: [:update, :destroy] 
 
   def index
-    @projects = @workspace.projects
-    render json: @projects, status: :ok
+    # @workspace is already set and access-checked by set_workspace
+    all_projects = @workspace.projects
+    accessible_projects = all_projects.select { |project| project.accessible_by?(current_user) }
+    
+    render json: accessible_projects, status: :ok
   end
 
   def show
@@ -48,18 +52,36 @@ class Api::V1::ProjectsController < ApplicationController
   private
 
   def set_workspace
-    @workspace = current_user.workspaces.find(params[:workspace_id])
-  rescue ActiveRecord::RecordNotFound
+
+    
+    @workspace = Workspace.find(params[:workspace_id])
+    
+    unless @workspace.accessible_by?(current_user)
+      render json: { error: 'Workspace not found' }, status: :not_found
+      return
+    end
+  rescue ActiveRecord::RecordNotFound => e
     render json: { error: 'Workspace not found' }, status: :not_found
   end
 
   def set_project
-    @project = current_user.projects.find(params[:id])
+    @project = Project.find(params[:id])
+    
+    unless @project.accessible_by?(current_user)
+      render json: { error: 'Project not found' }, status: :not_found
+    end
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'Project not found' }, status: :not_found
   end
   
   def project_params
     params.require(:project).permit(:title, :description, :project_type)
+  end
+
+  def authorize_project_access!
+    # For update/destroy, require ownership or collaborator role
+    unless @project.user == current_user || current_user.roles.exists?(roleable: @project, name: ['owner', 'collaborator'])
+      render json: { error: 'Project not found' }, status: :not_found
+    end
   end
 end

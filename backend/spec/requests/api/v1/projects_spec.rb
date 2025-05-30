@@ -417,4 +417,103 @@ RSpec.describe "Api::V1::Projects", type: :request do
       end
     end
   end
+
+  describe "project privacy and collaboration" do
+    let(:artist) { create(:user) }
+    let(:producer) { create(:user) }
+    let(:fan) { create(:user) }
+    let(:studio) { create(:workspace, user: artist, name: "Artist Studio") }
+    let(:album) { create(:project, workspace: studio, user: artist, title: "New Album") }
+
+    context "workspace collaboration" do
+      let(:token) { generate_token_for_user(producer) }
+      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+      it "allows workspace members to see projects" do
+        # Producer joins the studio
+        role = create(:role, user: producer, roleable: studio, name: 'collaborator')
+        
+        get "/api/v1/workspaces/#{studio.id}/projects", headers: headers
+
+        
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "allows workspace members to view individual projects" do
+        # Producer joins the studio
+        create(:role, user: producer, roleable: studio, name: 'collaborator')
+        
+        # Producer should be able to view the album directly
+        get "/api/v1/projects/#{album.id}", headers: headers
+        expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['title']).to eq("New Album")
+      end
+
+      it "blocks non-workspace members from accessing projects" do
+        # Fan is not in the workspace
+        fan_token = generate_token_for_user(fan)
+        fan_headers = { 'Authorization' => "Bearer #{fan_token}" }
+        
+        # Fan should not see projects in workspace
+        get "/api/v1/workspaces/#{studio.id}/projects", headers: fan_headers
+        expect(response).to have_http_status(:not_found)
+        
+        # Fan should not be able to view individual project
+        get "/api/v1/projects/#{album.id}", headers: fan_headers
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    context "private project workflow" do
+      let(:token) { generate_token_for_user(producer) }
+      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+      it "hides private projects from other workspace members" do
+        # Producer joins workspace
+        create(:role, user: producer, roleable: studio, name: 'collaborator')
+        
+        # Artist sets album to private (work in progress)
+        create(:privacy, privatable: album, user: artist, level: 'private')
+        album.reload
+        
+        # Producer should not see private album
+        get "/api/v1/workspaces/#{studio.id}/projects", headers: headers
+        json_response = JSON.parse(response.body)
+        project_titles = json_response.map { |p| p['title'] }
+        expect(project_titles).not_to include("New Album")
+        
+        # Producer should not access private album directly
+        get "/api/v1/projects/#{album.id}", headers: headers
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    context "public project sharing" do
+      let(:token) { generate_token_for_user(fan) }
+      let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+
+      it "allows public project access via direct link" do
+        # Artist makes album public for promotion
+        create(:privacy, privatable: album, user: artist, level: 'public')
+        album.reload
+        
+        # Fan should be able to access public album directly
+        get "/api/v1/projects/#{album.id}", headers: headers
+        expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['title']).to eq("New Album")
+      end
+
+      it "includes public projects in recent projects for everyone" do
+        # Artist makes album public
+        create(:privacy, privatable: album, user: artist, level: 'public')
+        
+        # Fan should see public albums in recent (if we implement this feature)
+        # This might require updating the recent projects logic
+      end
+    end
+  end
 end

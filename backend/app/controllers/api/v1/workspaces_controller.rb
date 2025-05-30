@@ -8,7 +8,16 @@ module Api
 
       # GET /api/v1/workspaces
       def index
-        @workspaces = current_user.accessible_workspaces
+        # Get user's accessible workspaces
+        accessible_workspaces = current_user.accessible_workspaces
+        
+        # Add public workspaces that aren't already included
+        public_workspaces = Workspace.joins(:privacy).where(privacies: { level: 'public' })
+        
+        # Combine and remove duplicates
+        all_workspace_ids = (accessible_workspaces.pluck(:id) + public_workspaces.pluck(:id)).uniq
+        @workspaces = Workspace.where(id: all_workspace_ids)
+        
         render json: @workspaces
       end
 
@@ -46,14 +55,22 @@ module Api
       private
 
       def set_workspace
-        @workspace = current_user.workspaces.find(params[:id])
+        @workspace = Workspace.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Workspace not found' }, status: :not_found
       end
 
       def authorize_owner!
-        unless @workspace.user_id == current_user.id
-          render json: { error: 'You are not authorized to perform this action' }, status: :forbidden
+        # For show action, use privacy logic
+        if action_name == 'show'
+          unless @workspace.accessible_by?(current_user)
+            render json: { error: 'Workspace not found' }, status: :not_found
+          end
+        else
+          # For update/destroy, require ownership
+          unless @workspace.user_id == current_user.id
+            render json: { error: 'Workspace not found' }, status: :not_found  # Hide existence
+          end
         end
       end
 

@@ -4,6 +4,8 @@ class User < ApplicationRecord
   has_many :projects, dependent: :destroy
   has_many :roles, dependent: :destroy
   has_many :track_versions, dependent: :destroy
+  has_many :privacies, dependent: :destroy 
+
   
   # Active Storage
   has_one_attached :profile_image
@@ -38,12 +40,18 @@ class User < ApplicationRecord
     projects
   end
   
-  # Add a method to get accessible workspaces (owned + shared)
-# app/models/user.rb
   def accessible_workspaces
-    # For now, just return owned workspaces
-    # In the future, you could expand this to include workspaces shared with the user
-    self.workspaces
+    # Get owned workspaces
+    owned_workspace_ids = self.workspaces.pluck(:id)
+    
+    # Get workspaces where user has roles
+    collaborated_workspace_ids = self.roles.where(roleable_type: 'Workspace').pluck(:roleable_id)
+    
+    # Combine both lists
+    all_workspace_ids = (owned_workspace_ids + collaborated_workspace_ids).uniq
+    
+    # Return all accessible workspaces
+    Workspace.where(id: all_workspace_ids)
   end
   
   # Include only workspaces that the user owns
@@ -60,20 +68,46 @@ class User < ApplicationRecord
     # Check direct access first
     return true if self.roles.exists?(roleable: resource)
 
-    # Check inherited access from parent resources
+    # Check inherited access from parent resources with nil safety
     case resource
     when Workspace
       # For workspaces, only direct roles matter (no inheritance)
       false  # Already checked above
     when Project
+      return false unless resource.workspace
       self.roles.exists?(roleable: resource.workspace)
     when TrackVersion
-      self.roles.exists?(roleable: resource.project) ||
-      self.roles.exists?(roleable: resource.project.workspace)
+      return false unless resource.project
+      
+      # Check project role
+      has_project_access = self.roles.exists?(roleable: resource.project)
+      
+      # Check workspace role (if project has workspace)
+      has_workspace_access = if resource.project.workspace
+                              self.roles.exists?(roleable: resource.project.workspace)
+                            else
+                              false
+                            end
+      
+      has_project_access || has_workspace_access
     when TrackContent
-      self.roles.exists?(roleable: resource.track_version) ||
-      self.roles.exists?(roleable: resource.track_version.project) ||
-      self.roles.exists?(roleable: resource.track_version.project.workspace)
+      return false unless resource.track_version
+      return false unless resource.track_version.project
+      
+      # Check track version role
+      has_version_access = self.roles.exists?(roleable: resource.track_version)
+      
+      # Check project role
+      has_project_access = self.roles.exists?(roleable: resource.track_version.project)
+      
+      # Check workspace role (if project has workspace)
+      has_workspace_access = if resource.track_version.project.workspace
+                              self.roles.exists?(roleable: resource.track_version.project.workspace)
+                            else
+                              false
+                            end
+      
+      has_version_access || has_project_access || has_workspace_access
     else
       false
     end
