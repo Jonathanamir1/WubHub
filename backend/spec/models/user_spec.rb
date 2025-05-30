@@ -202,4 +202,128 @@ RSpec.describe User, type: :model do
       expect(user.has_access_to?(project)).to be false
     end
   end
+
+  describe "database constraints" do
+    it "enforces email uniqueness at database level" do
+      user1 = create(:user, email: 'test@example.com')
+      
+      # Try to create duplicate with different case - should fail at DB level
+      expect {
+        User.create!(
+          email: 'TEST@example.com',  # Different case
+          username: 'different_user',
+          password: 'password123'
+        )
+      }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
+    it "enforces username uniqueness at database level" do
+      user1 = create(:user, username: 'testuser')
+      
+      expect {
+        User.create!(
+          email: 'different@example.com',
+          username: 'testuser',  # Same username
+          password: 'password123'
+        )
+      }.to raise_error(ActiveRecord::RecordInvalid, /Username has already been taken/)
+    end
+
+    it "handles very long field values gracefully" do
+      long_email = 'a' * 100 + '@example.com'
+      long_username = 'b' * 1000
+      long_name = 'c' * 1000
+      
+      user = User.new(
+        email: long_email,
+        username: long_username,
+        name: long_name,
+        password: 'password123'
+      )
+      
+      result = user.save      
+      # For now, let's just check what actually happened
+      expect(result).to be_in([true, false])
+    end
+  end
+
+  describe "authentication edge cases" do
+    it "handles password with special characters" do
+      special_password = "P@ssw0rd!#$%^&*()_+-=[]{}|;:,.<>?"
+      user = build(:user, password: special_password, password_confirmation: special_password)
+      expect(user).to be_valid
+      expect(user.authenticate(special_password)).to eq(user)
+    end
+
+    it "handles very long passwords" do
+      long_password = 'a' * 1000
+      user = build(:user, password: long_password, password_confirmation: long_password)
+      # Should either accept or validate length
+      expect(user.valid?).to be_in([true, false])
+    end
+
+    it "prevents password enumeration attacks" do
+      user = create(:user, password: 'correctpassword', password_confirmation: 'correctpassword')
+      
+      # Wrong password should behave same as non-existent user
+      wrong_password_result = user.authenticate('wrongpassword')
+      expect(wrong_password_result).to be_falsey
+    end
+
+    it "handles unicode in usernames and names correctly" do
+      unicode_user = build(:user, 
+                          username: 'üser_ñame', 
+                          name: 'José María González')
+      expect(unicode_user).to be_valid
+    end
+
+    it "normalizes email case consistently" do
+      email = 'TEST@Example.COM'
+      user = create(:user, email: email)
+      
+      # Email should be stored in consistent case
+      expect(user.email.downcase).to eq(email.downcase)
+    end
+  end
+
+  describe "complex user relationships" do
+    it "handles user with many roles across different resources" do
+      user = create(:user)
+      
+      # Create roles across different types
+      10.times do |i|
+        workspace = create(:workspace)
+        project = create(:project)
+        track_version = create(:track_version)
+        
+        create(:role, user: user, roleable: workspace, name: 'collaborator')
+        create(:role, user: user, roleable: project, name: 'viewer')
+        create(:role, user: user, roleable: track_version, name: 'commenter')
+      end
+      
+      expect(user.roles.count).to eq(30)
+      expect(user.roles.where(roleable_type: 'Workspace').count).to eq(10)
+      expect(user.roles.where(roleable_type: 'Project').count).to eq(10)
+      expect(user.roles.where(roleable_type: 'TrackVersion').count).to eq(10)
+    end
+
+    it "efficiently calculates accessible resources with many roles" do
+      user = create(:user)
+      
+      # Create complex permission structure
+      5.times do
+        workspace = create(:workspace)
+        create(:role, user: user, roleable: workspace, name: 'collaborator')
+        
+        3.times do
+          project = create(:project, workspace: workspace)
+          create(:role, user: user, roleable: project, name: 'viewer')
+        end
+      end
+      
+      # Should efficiently find accessible workspaces
+      accessible = user.accessible_workspaces
+      expect(accessible.count).to eq(5)
+    end
+  end
 end

@@ -45,59 +45,59 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
     end
   end
 
-describe "POST /api/v1/workspaces" do
-  let(:user) { create(:user) }
-  let(:token) { generate_token_for_user(user) }
-  let(:headers) { { 'Authorization' => "Bearer #{token}" } }
+  describe "POST /api/v1/workspaces" do
+    let(:user) { create(:user) }
+    let(:token) { generate_token_for_user(user) }
+    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
 
-  context "when user is authenticated" do
-    it "creates workspace successfully" do
-      workspace_params = {
-        workspace: {
-          name: "New Music Studio",
-          description: "My awesome studio workspace"
+    context "when user is authenticated" do
+      it "creates workspace successfully" do
+        workspace_params = {
+          workspace: {
+            name: "New Music Studio",
+            description: "My awesome studio workspace"
+          }
         }
-      }
 
-      expect {
-        post "/api/v1/workspaces", params: workspace_params, headers: headers
-      }.to change(Workspace, :count).by(1)
+        expect {
+          post "/api/v1/workspaces", params: workspace_params, headers: headers
+        }.to change(Workspace, :count).by(1)
 
-      expect(response).to have_http_status(:created)
-      
-      json_response = JSON.parse(response.body)
-      expect(json_response['name']).to eq("New Music Studio")
-      expect(json_response['description']).to eq("My awesome studio workspace")
-      
-      # Verify user owns the workspace
-      created_workspace = Workspace.last
-      expect(created_workspace.user).to eq(user)
+        expect(response).to have_http_status(:created)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['name']).to eq("New Music Studio")
+        expect(json_response['description']).to eq("My awesome studio workspace")
+        
+        # Verify user owns the workspace
+        created_workspace = Workspace.last
+        expect(created_workspace.user).to eq(user)
+      end
+
+      it "returns error when name is missing" do
+        invalid_params = {
+          workspace: {
+            name: "",
+            description: "Test"
+          }
+        }
+
+        post "/api/v1/workspaces", params: invalid_params, headers: headers
+        
+        expect(response).to have_http_status(:unprocessable_entity)
+        json_response = JSON.parse(response.body)
+        expect(json_response['errors']).to include("Name can't be blank")
+      end
     end
 
-    it "returns error when name is missing" do
-      invalid_params = {
-        workspace: {
-          name: "",
-          description: "Test"
-        }
-      }
-
-      post "/api/v1/workspaces", params: invalid_params, headers: headers
-      
-      expect(response).to have_http_status(:unprocessable_entity)
-      json_response = JSON.parse(response.body)
-      expect(json_response['errors']).to include("Name can't be blank")
+    context "when user is not authenticated" do
+      it "returns unauthorized status" do
+        workspace_params = { workspace: { name: "Test" } }
+        post "/api/v1/workspaces", params: workspace_params
+        expect(response).to have_http_status(:unauthorized)
+      end
     end
   end
-
-  context "when user is not authenticated" do
-    it "returns unauthorized status" do
-      workspace_params = { workspace: { name: "Test" } }
-      post "/api/v1/workspaces", params: workspace_params
-      expect(response).to have_http_status(:unauthorized)
-    end
-  end
-end
 
 
   # Add error handling tests
@@ -251,5 +251,6 @@ end
       end
     end
   end
+
 
 end

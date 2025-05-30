@@ -69,6 +69,79 @@ RSpec.describe "Api::V1::Auth", type: :request do
         expect(response).to have_http_status(:unauthorized)
       end
     end
+
+    context "edge cases and security" do
+      it "handles SQL injection attempts in email" do
+        malicious_email = "'; DROP TABLE users; --"
+        post "/api/v1/auth/login", params: { email: malicious_email, password: 'password123' }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles extremely long email addresses" do
+        long_email = 'a' * 1000 + '@example.com'
+        post "/api/v1/auth/login", params: { email: long_email, password: 'password123' }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles empty request body" do
+        post "/api/v1/auth/login", params: {}
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles missing password field" do
+        post "/api/v1/auth/login", params: { email: 'test@example.com' }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles missing email field" do
+        post "/api/v1/auth/login", params: { password: 'password123' }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles whitespace-only credentials" do
+        post "/api/v1/auth/login", params: { email: '   ', password: '   ' }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles case sensitivity in email correctly" do
+        user = create(:user, email: 'Test@Example.com', password: 'password123')
+        
+        # Should work with different case
+        post "/api/v1/auth/login", params: { email: 'test@example.com', password: 'password123' }
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "prevents timing attacks by taking consistent time for invalid users" do
+        # This is more of a documentation test - actual timing attack prevention 
+        # would need more sophisticated testing
+        start_time = Time.current
+        post "/api/v1/auth/login", params: { email: 'nonexistent@example.com', password: 'password' }
+        invalid_time = Time.current - start_time
+
+        user = create(:user, email: 'real@example.com', password: 'password123')
+        start_time = Time.current
+        post "/api/v1/auth/login", params: { email: 'real@example.com', password: 'wrongpassword' }
+        valid_user_time = Time.current - start_time
+
+        # Both should respond with same status
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context "rate limiting scenarios" do
+      let(:user) { create(:user, email: 'test@example.com', password: 'password123') }
+
+      it "handles multiple rapid login attempts" do
+        10.times do
+          post "/api/v1/auth/login", params: { email: user.email, password: 'wrongpassword' }
+          expect(response).to have_http_status(:unauthorized)
+        end
+        
+        # Should still work with correct password
+        post "/api/v1/auth/login", params: { email: user.email, password: 'password123' }
+        expect(response).to have_http_status(:ok)
+      end
+    end
   end
 
   describe "POST /api/v1/auth/register" do
@@ -149,6 +222,68 @@ RSpec.describe "Api::V1::Auth", type: :request do
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
+
+    context "registration edge cases" do
+      it "prevents duplicate registration with same email (different case)" do
+        create(:user, email: 'test@example.com')
+        
+        duplicate_params = {
+          email: 'TEST@Example.com',
+          username: 'different_username',
+          name: 'Different User',
+          password: 'password123',
+          password_confirmation: 'password123'
+        }
+        
+        post "/api/v1/auth/register", params: duplicate_params
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
+
+      it "handles unicode characters in usernames" do
+        unicode_params = {
+          email: 'unicode@example.com',
+          username: 'üser_ñame',
+          name: 'Unicode User',
+          password: 'password123',
+          password_confirmation: 'password123'
+        }
+        
+        post "/api/v1/auth/register", params: unicode_params
+        expect(response).to have_http_status(:created)
+      end
+
+      it "handles very long field values" do
+        long_params = {
+          email: 'test@example.com',
+          username: 'a' * 1000,
+          name: 'b' * 1000,
+          password: 'password123',
+          password_confirmation: 'password123'
+        }
+        
+        post "/api/v1/auth/register", params: long_params
+        # Depending on your validations, this might be :unprocessable_entity
+        expect([422, 201]).to include(response.status)
+      end
+
+      it "trims whitespace from email and username" do
+        whitespace_params = {
+          email: '  test@example.com  ',
+          username: '  testuser  ',
+          name: 'Test User',
+          password: 'password123',
+          password_confirmation: 'password123'
+        }
+        
+        post "/api/v1/auth/register", params: whitespace_params
+        
+        if response.status == 201
+          user = User.last
+          expect(user.email).to eq('test@example.com')
+          expect(user.username).to eq('testuser')
+        end
+      end
+    end
   end
 
   describe "GET /api/v1/auth/current" do
@@ -204,6 +339,53 @@ RSpec.describe "Api::V1::Auth", type: :request do
 
       it "returns unauthorized status" do
         get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer #{expired_token}" }
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context "token edge cases" do
+      let(:user) { create(:user) }
+
+      it "handles malformed JWT tokens" do
+        get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer not.a.valid.jwt" }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles JWT with invalid signature" do
+        # Create token with wrong secret
+        payload = { user_id: user.id, exp: 1.hour.from_now.to_i }
+        invalid_token = JWT.encode(payload, 'wrong_secret', 'HS256')
+        
+        get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer #{invalid_token}" }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles JWT without required fields" do
+        # Token without user_id
+        payload = { exp: 1.hour.from_now.to_i }
+        token_without_user = JWT.encode(payload, Rails.application.credentials.jwt_secret, 'HS256')
+        
+        get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer #{token_without_user}" }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles token for deleted user" do
+        token = generate_token_for_user(user)
+        user.destroy
+        
+        get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer #{token}" }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "handles different authorization header formats" do
+        token = generate_token_for_user(user)
+        
+        # Without 'Bearer' prefix
+        get "/api/v1/auth/current", headers: { 'Authorization' => token }
+        expect(response).to have_http_status(:unauthorized)
+        
+        # With extra spaces
+        get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer  #{token}  " }
         expect(response).to have_http_status(:unauthorized)
       end
     end

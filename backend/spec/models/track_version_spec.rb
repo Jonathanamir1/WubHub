@@ -28,6 +28,7 @@ RSpec.describe TrackVersion, type: :model do
     it { should belong_to(:project) }
     it { should belong_to(:user) }
     it { should have_many(:track_contents).dependent(:destroy) }
+    
     it 'can have a privacy record' do
       track_version = create(:track_version)
       privacy = create(:privacy, privatable: track_version)
@@ -35,6 +36,7 @@ RSpec.describe TrackVersion, type: :model do
       expect(track_version.privacy).to eq(privacy)
       expect(privacy.privatable).to eq(track_version)
     end
+    
     it 'destroys associated track contents when track version is destroyed' do
       track_version = create(:track_version)
       track_content = create(:track_content, track_version: track_version)
@@ -182,8 +184,6 @@ RSpec.describe TrackVersion, type: :model do
     end
   end
 
-
-
   describe 'version history and ordering' do
     let(:project) { create(:project) }
 
@@ -286,6 +286,62 @@ RSpec.describe TrackVersion, type: :model do
       unicode_title = '🎵 My Track 🎶 (Demo) 🎧'
       track_version = create(:track_version, title: unicode_title)
       expect(track_version.title).to eq(unicode_title)
+    end
+
+    it "handles track versions with identical content" do
+      project = create(:project)
+      
+      # Create two versions with same data
+      version1 = create(:track_version, 
+                      project: project, 
+                      title: "Same Title",
+                      waveform_data: "[0.1, 0.2, 0.3]",
+                      metadata: { tempo: 120 })
+      
+      version2 = create(:track_version,
+                      project: project,
+                      title: "Same Title", 
+                      waveform_data: "[0.1, 0.2, 0.3]",
+                      metadata: { tempo: 120 })
+      
+      expect(version1).to be_valid
+      expect(version2).to be_valid
+      expect(project.track_versions.count).to eq(2)
+    end
+
+    it "handles track versions with circular references in metadata" do
+      track_version = create(:track_version)
+      
+      # Metadata that references itself (potential JSON issue)
+      circular_metadata = { 
+        tempo: 120,
+        references: {
+          self: "track_version_#{track_version.id}",
+          parent: "project_#{track_version.project_id}"
+        }
+      }
+      
+      track_version.update!(metadata: circular_metadata)
+      track_version.reload
+      
+      expect(track_version.metadata['references']['self']).to be_present
+    end
+
+    it "handles extremely large waveform data" do
+      large_waveform = Array.new(100000) { rand(-1.0..1.0) }.to_json
+      track_version = build(:track_version, waveform_data: large_waveform)
+      
+      # Test that it saves successfully
+      expect(track_version.save).to be true
+      expect(track_version).to be_persisted
+    end
+
+    it "handles malformed JSON in metadata gracefully" do
+      track_version = create(:track_version)
+      
+      # This should work fine - Rails handles JSON conversion
+      track_version.metadata = { "key with spaces" => "value", "nested" => { "deep" => true } }
+      expect(track_version.save).to be true
     end
   end
 

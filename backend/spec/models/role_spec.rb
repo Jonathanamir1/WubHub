@@ -93,4 +93,42 @@ RSpec.describe Role, type: :model do
       expect(user.has_access_to?(track_content)).to be true 
     end
   end
+
+  describe 'role system edge cases' do
+    context 'circular references' do
+      it 'prevents infinite loops in access checking' do
+        user = create(:user)
+        workspace = create(:workspace, user: user)
+        project = create(:project, workspace: workspace, user: user)
+        
+        # Create role on project for user who already owns workspace
+        create(:role, user: user, roleable: project, name: 'collaborator')
+        
+        # Should not cause infinite recursion
+        expect(user.has_access_to?(project)).to be true
+      end
+    end
+
+    context 'role validation edge cases' do
+      it 'handles roles with invalid names gracefully' do
+        project = create(:project)
+        user = create(:user)
+        
+        # This should fail validation
+        invalid_role = Role.new(user: user, roleable: project, name: 'invalid_role_name')
+        expect(invalid_role).not_to be_valid
+      end
+
+      it 'prevents duplicate roles for same user/resource combination' do
+        project = create(:project)
+        user = create(:user)
+        
+        create(:role, user: user, roleable: project, name: 'collaborator')
+        
+        # Attempting to create duplicate should fail
+        duplicate_role = Role.new(user: user, roleable: project, name: 'viewer')
+        expect(duplicate_role).not_to be_valid
+      end
+    end
+  end
 end

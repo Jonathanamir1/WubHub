@@ -21,13 +21,22 @@ module Api
         user = User.new(user_params)
 
         if user.save
-          token = generate_token(user)  # This method needs to exist in the controller
+          token = generate_token(user)
           render json: {
             user: UserSerializer.new(user).as_json,
             token: token
           }, status: :created
         else
           render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotUnique => e
+        # Handle database constraint violations gracefully
+        if e.message.include?('email')
+          render json: { errors: ['Email has already been taken'] }, status: :unprocessable_entity
+        elsif e.message.include?('username')
+          render json: { errors: ['Username has already been taken'] }, status: :unprocessable_entity
+        else
+          render json: { errors: ['A record with these details already exists'] }, status: :unprocessable_entity
         end
       end
 

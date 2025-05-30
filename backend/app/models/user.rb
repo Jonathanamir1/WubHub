@@ -4,7 +4,9 @@ class User < ApplicationRecord
   has_many :projects, dependent: :destroy
   has_many :roles, dependent: :destroy
   has_many :track_versions, dependent: :destroy
-  has_many :privacies, dependent: :destroy 
+  has_many :privacies, dependent: :destroy
+
+  before_save :normalize_email
 
   
   # Active Storage
@@ -14,8 +16,9 @@ class User < ApplicationRecord
   has_secure_password
 
   # Validations
-  validates :username, presence: true, uniqueness: true
-  validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :username, presence: true, uniqueness: true, length: { maximum: 50 } 
+  validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }, length: { maximum: 255 }
+  validates :name, length: { maximum: 100 }
   
   # Returns all workspaces the user has access to (owned + collaborated)
   def all_workspaces
@@ -115,6 +118,12 @@ class User < ApplicationRecord
 
   def collaborated_projects
     Role.where(user: self, roleable_type: 'Project').includes(:roleable).map(&:roleable)
+  end
+
+  private
+
+  def normalize_email
+    self.email = email.downcase.strip if email.present?
   end
   
 end

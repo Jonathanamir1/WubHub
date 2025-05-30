@@ -13,20 +13,28 @@ module Privatable
     
     if privacy_record.nil?
       # No privacy record - use inherited access (which includes ownership check)
-      return true if self.user == user  # Owner access when no privacy
-      handle_inherited_access(user)
+      if self.user == user
+        return true
+      end
+      result = handle_inherited_access(user)
+      return result
     else
       # Privacy record exists - privacy rules override everything (including ownership)
       case privacy_record.level
       when 'private'
-        handle_private_access(user)  # Only privacy setter has access
+        result = handle_private_access(user)
+        return result
       when 'public'
-        true
+        return true
       when 'inherited'
-        return true if self.user == user  # Owner access for inherited
-        handle_inherited_access(user)
+        if self.user == user
+          return true
+        end
+        result = handle_inherited_access(user)
+        return result
       else
-        handle_private_access(user)
+        result = handle_private_access(user)
+        return result
       end
     end
   end
@@ -42,22 +50,26 @@ module Privatable
   end
 
   def handle_inherited_access(user)
+    
     # First check if user has a direct role on THIS resource
-    return true if user.roles.exists?(roleable: self)
+    has_role = user.roles.exists?(roleable: self)
+    return true if has_role
     
     case self
     when Workspace
-      # For workspaces, "inherited" means restricted (no parent to inherit from)
       false  # Only roles grant access, no inheritance
     when Project
       return false unless self.workspace
-      self.workspace.accessible_by?(user)
+      result = self.workspace.accessible_by?(user)
+      return result
     when TrackVersion
       return false unless self.project
-      self.project.accessible_by?(user)
+      result = self.project.accessible_by?(user)
+      return result
     when TrackContent
       return false unless self.track_version
-      self.track_version.accessible_by?(user)
+      result = self.track_version.accessible_by?(user)
+      return result
     else
       false
     end

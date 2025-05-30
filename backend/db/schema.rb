@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_30_082716) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_30_150125) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -72,6 +72,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_30_082716) do
     t.datetime "updated_at", null: false
     t.integer "roleable_id"
     t.string "roleable_type"
+    t.index ["roleable_type", "roleable_id"], name: "index_roles_on_roleable"
     t.index ["user_id"], name: "index_roles_on_user_id"
   end
 
@@ -111,6 +112,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_30_082716) do
     t.string "profile_image"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["username"], name: "index_users_on_username", unique: true
   end
 
   create_table "workspaces", force: :cascade do |t|

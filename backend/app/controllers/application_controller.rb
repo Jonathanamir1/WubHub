@@ -37,7 +37,15 @@ class ApplicationController < ActionController::API
 
   def extract_token_from_request
     header = request.headers['Authorization']
-    header.present? ? header.split(' ').last : nil
+    return nil unless header.present?
+    
+    # Must be exactly "Bearer <token>" - no extra spaces anywhere
+    return nil unless header.match(/\ABearer [^\s]+\z/)
+    
+    parts = header.split(' ')
+    return nil unless parts.length == 2
+    
+    parts[1]
   end
 
   def decode_token(token)
