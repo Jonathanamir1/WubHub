@@ -33,7 +33,10 @@ module Backend
     
     # Insert our security middleware at the very beginning
     # Configuration for the application, engines, and railties goes here.
-    #
+
+    ## Enable Rack::Attack middleware
+
+    config.middleware.use Rack::Attack unless Rails.env.test?    
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
