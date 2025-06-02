@@ -18,6 +18,9 @@ require "action_cable/engine"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
+# Explicitly require our custom middleware
+require_relative "../lib/security_headers_middleware"
+
 module Backend
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
@@ -27,7 +30,8 @@ module Backend
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w(assets tasks))
-
+    
+    # Insert our security middleware at the very beginning
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files
