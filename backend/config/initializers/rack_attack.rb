@@ -33,7 +33,7 @@ unless Rails.env.test?
     end
     
     # Custom response for throttled requests
-    self.throttled_response = lambda do |env|
+    self.throttled_responder = lambda do |env|
       [
         429, # Too Many Requests
         { 'Content-Type' => 'application/json' },

@@ -17,6 +17,10 @@ Rails.application.routes.draw do
       # Core workspace/project workflow
       resources :workspaces do
         resources :projects, only: [:index, :create]
+        
+        # NEW: Direct workspace-level routes for flexible hierarchy
+        resources :track_versions, only: [:index, :create]
+        resources :track_contents, only: [:index, :create]
       end
 
       resources :projects, only: [:show, :update, :destroy] do
@@ -24,7 +28,7 @@ Rails.application.routes.draw do
           get 'recent'
         end
         
-        # Core music production features
+        # Traditional project-level routes
         resources :track_versions, shallow: true
         resources :roles, only: [:index, :create]
       end
