@@ -12,16 +12,6 @@ RSpec.describe "Database Migrations", type: :model do
       expect(username_index).to be_present, "Missing unique index on users.username"
     end
 
-    it "has foreign key constraints properly set up" do
-      # Check that foreign keys exist and are properly configured
-      foreign_keys = ActiveRecord::Base.connection.foreign_keys('projects')
-      
-      workspace_fk = foreign_keys.find { |fk| fk.column == 'workspace_id' }
-      user_fk = foreign_keys.find { |fk| fk.column == 'user_id' }
-      
-      expect(workspace_fk).to be_present
-      expect(user_fk).to be_present
-    end
 
     it "has proper polymorphic indexes" do
       # Check polymorphic indexes for roles

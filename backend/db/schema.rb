@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_05_083942) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_05_135211) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -82,17 +82,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_05_083942) do
     t.index ["user_id"], name: "index_privacies_on_user_id"
   end
 
-  create_table "projects", force: :cascade do |t|
-    t.string "title"
-    t.text "description"
-    t.bigint "workspace_id", null: false
-    t.bigint "user_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["user_id"], name: "index_projects_on_user_id"
-    t.index ["workspace_id"], name: "index_projects_on_workspace_id"
-  end
-
   create_table "roles", force: :cascade do |t|
     t.string "name"
     t.bigint "user_id", null: false
@@ -116,21 +105,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_05_083942) do
     t.datetime "updated_at", null: false
     t.index ["container_id"], name: "index_track_contents_on_container_id"
     t.index ["user_id"], name: "index_track_contents_on_user_id"
-  end
-
-  create_table "track_versions", force: :cascade do |t|
-    t.string "title"
-    t.text "waveform_data"
-    t.bigint "project_id"
-    t.bigint "user_id", null: false
-    t.jsonb "metadata"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.text "description"
-    t.bigint "workspace_id"
-    t.index ["project_id"], name: "index_track_versions_on_project_id"
-    t.index ["user_id"], name: "index_track_versions_on_user_id"
-    t.index ["workspace_id"], name: "index_track_versions_on_workspace_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -161,13 +135,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_05_083942) do
   add_foreign_key "containers", "workspaces"
   add_foreign_key "file_attachments", "users"
   add_foreign_key "privacies", "users"
-  add_foreign_key "projects", "users"
-  add_foreign_key "projects", "workspaces"
   add_foreign_key "roles", "users"
   add_foreign_key "track_contents", "containers"
   add_foreign_key "track_contents", "users"
-  add_foreign_key "track_versions", "projects"
-  add_foreign_key "track_versions", "users"
-  add_foreign_key "track_versions", "workspaces"
   add_foreign_key "workspaces", "users"
 end
