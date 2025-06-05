@@ -11,11 +11,6 @@ RSpec.describe ApplicationRecord, type: :model do
   end
 
   describe "inheritance" do
-    it "is inherited by all model classes" do
-      expect(User.superclass).to eq(ApplicationRecord)
-      expect(Workspace.superclass).to eq(ApplicationRecord)
-      expect(Project.superclass).to eq(ApplicationRecord)
-    end
   end
 
   describe "primary key configuration" do

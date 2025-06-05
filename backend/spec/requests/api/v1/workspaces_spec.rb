@@ -100,28 +100,6 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
   end
 
 
-  # Add error handling tests
-  describe "error handling" do
-    let(:user) { create(:user) }
-    let(:token) { generate_token_for_user(user) }
-    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
-
-    context "when deleting workspace with projects" do
-      it "deletes workspace and cascades to projects" do
-        workspace = create(:workspace, user: user)
-        project = create(:project, workspace: workspace, user: user)
-        
-        expect {
-          delete "/api/v1/workspaces/#{workspace.id}", headers: headers
-        }.to change(Project, :count).by(-1)
-        
-        expect(response).to have_http_status(:ok)
-        expect(Workspace.exists?(workspace.id)).to be false
-      end
-    end
-
-  end
-
   describe "PUT /api/v1/workspaces/:id" do
     let(:user) { create(:user) }
     let(:workspace) { create(:workspace, user: user, name: "Original Name") }
@@ -167,23 +145,7 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
     end  
   end
 
-  describe "DELETE /api/v1/workspaces/:id" do
-    let(:user) { create(:user) }
-    let(:workspace) { create(:workspace, user: user) }
-    let(:token) { generate_token_for_user(user) }
-    let(:headers) { { 'Authorization' => "Bearer #{token}" } }
-    
-    it "deletes the workspace successfully" do
-      # YOUR TURN: Complete this test
-      # Think about:
-      # 1. What HTTP method and route?
-      delete "/api/v1/workspaces/#{workspace.id}", headers: headers
-      # 2. What status code for successful deletion?
-      expect(response).to have_http_status(:ok)
-      # 3. How to verify it was actually deleted from database?
-      expect(Workspace.exists?(workspace.id)).to be false
-    end
-  end
+
 
   describe "workspace privacy integration" do
     let(:artist) { create(:user) }

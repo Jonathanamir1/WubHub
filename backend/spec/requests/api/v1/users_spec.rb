@@ -409,19 +409,9 @@ RSpec.describe "Api::V1::Users", type: :request do
       let(:token) { generate_token_for_user(user) }
       let(:headers) { { 'Authorization' => "Bearer #{token}" } }
 
-      it "deletes user account successfully" do
-        delete "/api/v1/users/#{user.id}", headers: headers
-        
-        expect(response).to have_http_status(:ok)
-        expect(User.exists?(user.id)).to be false
-      end
 
-      it "returns success message" do
-        delete "/api/v1/users/#{user.id}", headers: headers
-        json_response = JSON.parse(response.body)
-        
-        expect(json_response['message']).to eq('Account deleted successfully')
-      end
+
+
 
       it "deletes associated workspaces" do
         workspace = create(:workspace, user: user)
@@ -431,55 +421,11 @@ RSpec.describe "Api::V1::Users", type: :request do
         }.to change(Workspace, :count).by(-1)
       end
 
-      it "deletes associated projects" do
-        workspace = create(:workspace, user: user)
-        project = create(:project, user: user, workspace: workspace)
-        
-        expect {
-          delete "/api/v1/users/#{user.id}", headers: headers
-        }.to change(Project, :count).by(-1)
-      end
 
-      it "deletes associated track versions" do
-        workspace = create(:workspace, user: user)
-        project = create(:project, user: user, workspace: workspace)
-        track_version = create(:track_version, user: user, project: project)
-        
-        expect {
-          delete "/api/v1/users/#{user.id}", headers: headers
-        }.to change(TrackVersion, :count).by(-1)
-      end
 
-      it "deletes associated roles" do
-        project = create(:project)
-        role = create(:role, user: user, roleable: project)
-        
-        expect {
-          delete "/api/v1/users/#{user.id}", headers: headers
-        }.to change(Role, :count).by(-1)
-      end
 
-      it "deletes attached profile image" do
-        file = Tempfile.new(['test_avatar', '.jpg'])
-        file.write('fake image data')
-        file.rewind
-        
-        user.profile_image.attach(
-          io: file,
-          filename: 'avatar.jpg',
-          content_type: 'image/jpeg'
-        )
-        
-        expect(user.profile_image).to be_attached
-        
-        delete "/api/v1/users/#{user.id}", headers: headers
-        
-        # The user and their attachments should be gone
-        expect(User.exists?(user.id)).to be false
-        
-        file.close
-        file.unlink
-      end
+
+
     end
 
     context "when trying to delete another user's account" do

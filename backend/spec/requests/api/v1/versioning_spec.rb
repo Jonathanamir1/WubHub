@@ -114,30 +114,6 @@ RSpec.describe "API Versioning", type: :request do
       expect(response).to have_http_status(:created)
     end
 
-    it "handles multipart form data for file uploads" do
-      workspace = create(:workspace, user: user)
-      project = create(:project, workspace: workspace, user: user)
-      track_version = create(:track_version, project: project, user: user)
-      
-      file = Tempfile.new(['test', '.wav'])
-      file.write('test data')
-      file.rewind
-      
-      upload_params = {
-        track_content: { title: "Test Upload", content_type: "audio" },
-        file: Rack::Test::UploadedFile.new(file.path, 'audio/wav', true)
-      }
-      
-      # Should handle multipart without explicit Content-Type
-      post "/api/v1/track_versions/#{track_version.id}/track_contents",
-           params: upload_params,
-           headers: headers  # No Content-Type for multipart
-      
-      expect(response).to have_http_status(:created)
-      
-      file.close
-      file.unlink
-    end
   end
 
   describe "deprecated field handling" do

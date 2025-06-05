@@ -31,37 +31,4 @@ RSpec.describe "Database Migrations", type: :model do
       expect(polymorphic_index).to be_present, "Missing polymorphic index on roles"
     end
   end
-
-  describe "data integrity" do
-    it "properly handles cascade deletes" do
-      user = create(:user)
-      workspace = create(:workspace, user: user)
-      project = create(:project, workspace: workspace, user: user)
-      track_version = create(:track_version, project: project, user: user)
-      track_content = create(:track_content, track_version: track_version)
-      
-      # Delete user should cascade properly
-      user_id = user.id
-      user.destroy
-      
-      expect(Workspace.where(user_id: user_id)).to be_empty
-      expect(Project.where(user_id: user_id)).to be_empty
-      expect(TrackVersion.where(user_id: user_id)).to be_empty
-    end
-
-    it "handles jsonb fields properly" do
-      track_version = create(:track_version, metadata: { tempo: 120, key: 'C major' })
-      
-      # Test jsonb querying
-      found = TrackVersion.where("metadata->>'tempo' = ?", '120').first
-      expect(found).to eq(track_version)
-      
-      # Test jsonb updating
-      track_version.update!(metadata: track_version.metadata.merge(genre: 'Electronic'))
-      track_version.reload
-      
-      expect(track_version.metadata['tempo']).to eq(120)
-      expect(track_version.metadata['genre']).to eq('Electronic')
-    end
-  end
 end

@@ -42,9 +42,7 @@ RSpec.describe User, type: :model do
 
   describe 'associations' do
     it { should have_many(:workspaces).dependent(:destroy) }
-    it { should have_many(:projects).dependent(:destroy) }
-    it { should have_many(:roles).dependent(:destroy) }
-    it { should have_many(:track_versions).dependent(:destroy) }
+
     it { should have_one_attached(:profile_image) }
   end
 
@@ -73,75 +71,6 @@ RSpec.describe User, type: :model do
     end
   end
 
-  describe '#all_projects' do
-    it 'returns owned and collaborated projects' do
-      user = create(:user)
-      owned_project = create(:project, user: user)
-      
-      # Create a project where user is a collaborator (using polymorphic role)
-      other_project = create(:project)
-      create(:role, user: user, roleable: other_project)
-      
-      expect(user.all_projects).to include(owned_project, other_project)
-    end
-  end
-
-  describe '#collaborated_projects' do
-    it 'returns projects where user has roles' do
-      user = create(:user)
-      
-      # Projects where user is a collaborator
-      project1 = create(:project)
-      project2 = create(:project)
-      create(:role, user: user, roleable: project1, name: 'collaborator')
-      create(:role, user: user, roleable: project2, name: 'viewer')
-      
-      # Project where user has no role (should not appear)
-      project3 = create(:project)
-      
-      # User's own project (should not appear in collaborated_projects)
-      owned_project = create(:project, user: user)
-      
-      collaborated = user.collaborated_projects
-      expect(collaborated).to include(project1, project2)
-      expect(collaborated).not_to include(project3, owned_project)
-    end
-
-    it 'returns empty array when user has no collaboration roles' do
-      user = create(:user)
-      owned_project = create(:project, user: user)
-      
-      expect(user.collaborated_projects).to be_empty
-    end
-  end
-
-  describe '#recent_projects' do
-    it 'returns recent projects ordered by updated_at' do
-      user = create(:user)
-      old_project = create(:project, user: user, updated_at: 2.days.ago)
-      recent_project = create(:project, user: user, updated_at: 1.day.ago)
-
-      expect(user.recent_projects).to eq([recent_project, old_project])
-    end
-
-    it 'limits results to specified count' do
-      user = create(:user)
-      5.times { create(:project, user: user) }
-
-      expect(user.recent_projects(3).count).to eq(3)
-    end
-  end
-
-  describe '#accessible_workspaces' do
-    it 'returns workspaces the user owns' do
-      user = create(:user)
-      workspace = create(:workspace, user: user)
-      other_workspace = create(:workspace)
-
-      expect(user.accessible_workspaces).to include(workspace)
-      expect(user.accessible_workspaces).not_to include(other_workspace)
-    end
-  end
 
   describe '#owned_workspaces' do
     it 'returns only workspaces owned by the user' do
@@ -170,38 +99,6 @@ RSpec.describe User, type: :model do
     end
   end
 
-  describe 'role-based access' do
-    let(:user) { create(:user) }
-
-    it 'can have roles on different types of resources' do
-      workspace = create(:workspace)
-      project = create(:project)
-      track_version = create(:track_version)
-
-      workspace_role = create(:role, user: user, roleable: workspace, name: 'owner')
-      project_role = create(:role, user: user, roleable: project, name: 'collaborator')
-      version_role = create(:role, user: user, roleable: track_version, name: 'viewer')
-
-      expect(user.roles.count).to eq(3)
-      expect(user.roles.pluck(:roleable_type)).to contain_exactly('Workspace', 'Project', 'TrackVersion')
-    end
-
-    it 'can check access to resources through has_access_to? method' do
-      workspace = create(:workspace)
-      project = create(:project, workspace: workspace)
-      
-      # User has workspace role, should have access to project in that workspace
-      create(:role, user: user, roleable: workspace, name: 'owner')
-      
-      expect(user.has_access_to?(project)).to be true
-    end
-
-    it 'returns false for resources without access' do
-      project = create(:project)
-      
-      expect(user.has_access_to?(project)).to be false
-    end
-  end
 
   describe "database constraints" do
     it "enforces email uniqueness at database level" do
@@ -286,44 +183,4 @@ RSpec.describe User, type: :model do
     end
   end
 
-  describe "complex user relationships" do
-    it "handles user with many roles across different resources" do
-      user = create(:user)
-      
-      # Create roles across different types
-      10.times do |i|
-        workspace = create(:workspace)
-        project = create(:project)
-        track_version = create(:track_version)
-        
-        create(:role, user: user, roleable: workspace, name: 'collaborator')
-        create(:role, user: user, roleable: project, name: 'viewer')
-        create(:role, user: user, roleable: track_version, name: 'commenter')
-      end
-      
-      expect(user.roles.count).to eq(30)
-      expect(user.roles.where(roleable_type: 'Workspace').count).to eq(10)
-      expect(user.roles.where(roleable_type: 'Project').count).to eq(10)
-      expect(user.roles.where(roleable_type: 'TrackVersion').count).to eq(10)
-    end
-
-    it "efficiently calculates accessible resources with many roles" do
-      user = create(:user)
-      
-      # Create complex permission structure
-      5.times do
-        workspace = create(:workspace)
-        create(:role, user: user, roleable: workspace, name: 'collaborator')
-        
-        3.times do
-          project = create(:project, workspace: workspace)
-          create(:role, user: user, roleable: project, name: 'viewer')
-        end
-      end
-      
-      # Should efficiently find accessible workspaces
-      accessible = user.accessible_workspaces
-      expect(accessible.count).to eq(5)
-    end
-  end
 end

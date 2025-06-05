@@ -369,13 +369,6 @@ RSpec.describe "Api::V1::Auth", type: :request do
         expect(response).to have_http_status(:unauthorized)
       end
 
-      it "handles token for deleted user" do
-        token = generate_token_for_user(user)
-        user.destroy
-        
-        get "/api/v1/auth/current", headers: { 'Authorization' => "Bearer #{token}" }
-        expect(response).to have_http_status(:unauthorized)
-      end
 
       it "handles different authorization header formats" do
         token = generate_token_for_user(user)

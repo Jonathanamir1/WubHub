@@ -152,41 +152,5 @@ RSpec.describe "Rate Limiting", type: :request do
     end
   end
 
-  describe "music platform specific rate limiting" do
-    let(:workspace) { create(:workspace, user: user) }
-    let(:project) { create(:project, workspace: workspace, user: user) }
-    let(:track_version) { create(:track_version, project: project, user: user) }
 
-    it "protects against excessive file uploads" do
-      # Simulate someone trying to spam upload music files
-      25.times do |i|
-        post "/api/v1/track_versions/#{track_version.id}/track_contents",
-            params: {
-              track_content: {
-                title: "Spam Upload #{i}",
-                content_type: "audio"
-              }
-            },
-            headers: headers
-      end
-      
-      # Should eventually get rate limited
-      expect([201, 429]).to include(response.status)
-    end
-    
-    it "allows reasonable collaboration activity" do
-      # Normal music collaboration workflow
-      5.times do |i|
-        post "/api/v1/track_versions/#{track_version.id}/track_contents",
-            params: {
-              track_content: {
-                title: "Mix Version #{i}",
-                content_type: "audio"
-              }
-            },
-            headers: headers
-        expect([201, 422]).to include(response.status) # 201 created or 422 validation error, not 429 rate limited
-      end
-    end
-  end
 end

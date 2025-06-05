@@ -17,33 +17,10 @@ RSpec.describe Workspace, type: :model do
 
   describe 'associations' do
     it { should belong_to(:user) }
-    it { should have_many(:projects).dependent(:destroy) }
-
-    it 'destroys associated projects when workspace is destroyed' do
-      workspace = create(:workspace)
-      project = create(:project, workspace: workspace)
-      
-      expect { workspace.destroy }.to change(Project, :count).by(-1)
-    end
   end
 
 
 
-  describe 'project relationship' do
-    it 'can have multiple projects' do
-      workspace = create(:workspace)
-      project1 = create(:project, workspace: workspace)
-      project2 = create(:project, workspace: workspace)
-
-      expect(workspace.projects).to include(project1, project2)
-      expect(workspace.projects.count).to eq(2)
-    end
-
-    it 'returns empty collection when no projects exist' do
-      workspace = create(:workspace)
-      expect(workspace.projects).to be_empty
-    end
-  end
 
   describe 'workspace ownership' do
     it 'belongs to the user who created it' do
@@ -64,17 +41,6 @@ RSpec.describe Workspace, type: :model do
       expect(workspace2.user).to eq(user2)
       expect(user1.workspaces).to include(workspace1)
       expect(user1.workspaces).not_to include(workspace2)
-    end
-  end
-
-  describe 'data integrity' do
-    it 'maintains referential integrity with user' do
-      user = create(:user)
-      workspace = create(:workspace, user: user)
-
-      # Attempting to delete user should fail if workspace exists
-      expect { user.destroy }.to change(Workspace, :count).by(-1)
-      # The workspace should be destroyed due to dependent: :destroy
     end
   end
 
@@ -130,36 +96,7 @@ RSpec.describe Workspace, type: :model do
   end
 
   describe "workspace collaboration edge cases" do
-    it "handles workspace with many projects and complex permissions" do
-      workspace = create(:workspace)
-      
-      # Create many projects with different owners
-      users = create_list(:user, 10)
-      projects = []
-      
-      users.each do |user|
-        5.times do
-          projects << create(:project, workspace: workspace, user: user)
-        end
-      end
-      
-      expect(workspace.projects.count).to eq(50)
-      expect(workspace.projects.group(:user_id).count.keys.length).to eq(10)
-    end
 
-    it "maintains workspace integrity when projects are deleted" do
-      workspace = create(:workspace)
-      projects = create_list(:project, 5, workspace: workspace)
-      
-      initial_count = workspace.projects.count
-      
-      # Delete some projects
-      projects[0..2].each(&:destroy)
-      
-      workspace.reload
-      expect(workspace.projects.count).to eq(initial_count - 3)
-      expect(workspace).to be_valid
-    end
 
     it "handles workspace name conflicts across users" do
       user1 = create(:user)

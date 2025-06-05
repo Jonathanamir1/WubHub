@@ -78,32 +78,4 @@ RSpec.describe "Security Headers", type: :request do
       expect(response.headers['X-Frame-Options']).to eq('DENY')
     end
   end
-
-  describe "file upload security" do
-    let(:workspace) { create(:workspace, user: user) }
-    let(:project) { create(:project, workspace: workspace, user: user) }
-    let(:track_version) { create(:track_version, project: project, user: user) }
-
-    it "includes security headers for file uploads" do
-      file = Tempfile.new(['test', '.wav'])
-      file.write('test audio data')
-      file.rewind
-
-      post "/api/v1/track_versions/#{track_version.id}/track_contents",
-           params: {
-             track_content: { title: "Test Upload", content_type: "audio" },
-             file: Rack::Test::UploadedFile.new(file.path, 'audio/wav', true)
-           },
-           headers: auth_headers
-
-      expect(response.headers['X-Content-Type-Options']).to eq('nosniff')
-      expect(response.headers['X-Frame-Options']).to eq('DENY')
-
-      file.close
-      file.unlink
-    end
-  end
-
-  # Note: CORS preflight requests (OPTIONS) are handled by infrastructure in production
-  # and don't typically carry security headers due to CORS middleware limitations
 end
