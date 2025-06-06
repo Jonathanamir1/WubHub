@@ -14,9 +14,14 @@ Rails.application.routes.draw do
       # User management routes
       resources :users, only: [:index, :show, :update, :destroy]
 
-      # Core workspace/project workflow
+      # Core workspace/container workflow
       resources :workspaces do
-        resources :containers, only: [:index, :create]  # Add this line
+        resources :containers, only: [:index, :create]  
+      end
+
+      #Core container/track_content
+      resources :containers do
+        resources :track_contents, only: [:index, :create]
       end
 
       # Standalone role management

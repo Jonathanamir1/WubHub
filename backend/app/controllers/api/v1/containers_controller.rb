@@ -1,7 +1,6 @@
-# app/controllers/api/v1/containers_controller.rb
 class Api::V1::ContainersController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_workspace, only: [:index, :create]  # Add :create back
+  before_action :set_workspace, only: [:index, :create]
 
   def index
     @containers = @workspace.containers

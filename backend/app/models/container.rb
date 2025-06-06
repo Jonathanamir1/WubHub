@@ -5,6 +5,7 @@ class Container < ApplicationRecord
   belongs_to :parent_container, class_name: 'Container', optional: true
   
   has_many :children, class_name: 'Container', foreign_key: 'parent_container_id'
+  has_many :track_contents, dependent: :destroy 
   
   validates :name, presence: true
   validates :container_type, presence: true
