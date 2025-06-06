@@ -16,32 +16,12 @@ Rails.application.routes.draw do
 
       # Core workspace/project workflow
       resources :workspaces do
-        resources :projects, only: [:index, :create]
-        
-        # NEW: Direct workspace-level routes for flexible hierarchy
-        resources :track_versions, only: [:index, :create]
-        resources :track_contents, only: [:index, :create]
-      end
-
-      resources :projects, only: [:show, :update, :destroy] do
-        collection do
-          get 'recent'
-        end
-        
-        # Traditional project-level routes
-        resources :track_versions, shallow: true
-        resources :roles, only: [:index, :create]
+        resources :containers, only: [:index, :create]  # Add this line
       end
 
       # Standalone role management
       resources :roles, only: [:show, :update, :destroy]
 
-      # Track version content management
-      resources :track_versions, only: [:show, :update, :destroy] do
-        resources :track_contents, shallow: true
-      end
-
-      resources :track_contents, only: [:show, :update, :destroy]
     end
   end
 end
