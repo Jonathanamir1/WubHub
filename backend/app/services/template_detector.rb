@@ -6,8 +6,7 @@ class TemplateDetector
     'mixing_engineer',
     'mastering_engineer',
     'artist',
-    'film_composer',
-    'other'  # Always include 'other' as fallback
+    'other'  
   ].freeze
 
   def self.detect_template(workspace)

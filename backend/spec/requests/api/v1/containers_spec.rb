@@ -12,9 +12,6 @@ RSpec.describe "Api::V1::Containers", type: :request do
       
       get "/api/v1/workspaces/#{workspace.id}/containers", headers: headers
       
-      puts "Response status: #{response.status}"
-      puts "Response body: #{response.body}"
-      
       expect(response).to have_http_status(:ok)
       json_response = JSON.parse(response.body)
       expect(json_response).to be_an(Array)

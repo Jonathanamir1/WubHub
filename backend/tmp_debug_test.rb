@@ -7,10 +7,7 @@ RSpec.describe "Debug CORS", type: :request do
       'Access-Control-Request-Method' => 'GET',
       'Access-Control-Request-Headers' => 'Authorization'
     }
-    
-    puts "Status: #{response.status}"
-    puts "Headers: #{response.headers.inspect}"
-    puts "Body: #{response.body}"
+
     
     expect(response.status).to eq(200)
   end

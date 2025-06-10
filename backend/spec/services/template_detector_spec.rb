@@ -32,8 +32,8 @@ RSpec.describe TemplateDetector, type: :service do
     it 'returns all available template types' do
       templates = TemplateDetector.available_templates
       
-      expect(templates).to include('songwriter', 'producer', 'mixing_engineer', 'mastering_engineer', 'artist', 'film_composer', 'other')
-      expect(templates.length).to eq(7)
+      expect(templates).to include('songwriter', 'producer', 'mixing_engineer', 'mastering_engineer', 'artist', 'other')
+      expect(templates.length).to eq(6)
     end
   end
 end
