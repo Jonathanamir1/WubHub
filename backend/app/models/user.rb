@@ -16,8 +16,7 @@ class User < ApplicationRecord
   # Validations
   validates :username, presence: true, uniqueness: true, length: { maximum: 50 } 
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }, length: { maximum: 255 }
-  validates :name, length: { maximum: 100 }
-  
+    
   # Returns all workspaces the user has access to (owned + collaborated)
   def all_workspaces
     Workspace.where(id: self.workspaces.pluck(:id))

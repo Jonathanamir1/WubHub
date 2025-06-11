@@ -2,7 +2,7 @@
 class UserPublicSerializer < ActiveModel::Serializer
   include Rails.application.routes.url_helpers
   
-  attributes :id, :username, :name, :bio, :profile_image_url, :created_at
+  attributes :id, :username, :bio, :profile_image_url, :created_at
 
   def profile_image_url
     if object.profile_image.attached?
