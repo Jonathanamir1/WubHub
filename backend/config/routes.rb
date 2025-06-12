@@ -24,6 +24,15 @@ Rails.application.routes.draw do
         resources :track_contents, only: [:index, :create]
       end
 
+      # Onboarding routes
+      scope :onboarding do
+        get :status, to: 'onboarding#status'
+        post :start, to: 'onboarding#start'
+        post :complete, to: 'onboarding#complete'
+        post :skip, to: 'onboarding#skip'
+        post :reset, to: 'onboarding#reset'  # For admin/support
+      end
+
       # Standalone role management
       resources :roles, only: [:show, :update, :destroy]
 

@@ -1,3 +1,4 @@
+// src/lib/api.tsx - Updated to use environment variables with fallback
 const API_BASE =
 	process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
@@ -144,6 +145,93 @@ export async function deleteWorkspace(token: string, workspaceId: number) {
 				success: false,
 				error: errorData.error || 'Failed to delete workspace',
 			};
+		}
+	} catch (error) {
+		return { success: false, error: 'Network error' };
+	}
+}
+
+// Onboarding API functions
+export async function getOnboardingStatus(token: string) {
+	try {
+		const response = await fetch(`${API_BASE}/onboarding/status`, {
+			method: 'GET',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+		});
+
+		if (response.ok) {
+			const data = await response.json();
+			return { success: true, data };
+		} else if (response.status === 401) {
+			return { success: false, error: 'Unauthorized', status: 401 };
+		} else {
+			return { success: false, error: 'Failed to get onboarding status' };
+		}
+	} catch (error) {
+		return { success: false, error: 'Network error' };
+	}
+}
+
+export async function startOnboarding(token: string) {
+	try {
+		const response = await fetch(`${API_BASE}/onboarding/start`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+		});
+
+		if (response.ok) {
+			const data = await response.json();
+			return { success: true, data };
+		} else {
+			return { success: false, error: 'Failed to start onboarding' };
+		}
+	} catch (error) {
+		return { success: false, error: 'Network error' };
+	}
+}
+
+export async function completeOnboarding(token: string) {
+	try {
+		const response = await fetch(`${API_BASE}/onboarding/complete`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+		});
+
+		if (response.ok) {
+			const data = await response.json();
+			return { success: true, data };
+		} else {
+			return { success: false, error: 'Failed to complete onboarding' };
+		}
+	} catch (error) {
+		return { success: false, error: 'Network error' };
+	}
+}
+
+export async function skipOnboarding(token: string) {
+	try {
+		const response = await fetch(`${API_BASE}/onboarding/skip`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json',
+			},
+		});
+
+		if (response.ok) {
+			const data = await response.json();
+			return { success: true, data };
+		} else {
+			return { success: false, error: 'Failed to skip onboarding' };
 		}
 	} catch (error) {
 		return { success: false, error: 'Network error' };

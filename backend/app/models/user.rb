@@ -47,6 +47,55 @@ class User < ApplicationRecord
     name.present? ? name : username
   end
 
+  # Onboarding step constants
+  ONBOARDING_STEPS = [
+    'not_started',
+    'workspace_creation',  # Current step: create initial workspace
+    'completed'
+    # Future steps could be: 'profile_setup', 'team_invitation', etc.
+  ].freeze
+  
+  validates :onboarding_step, inclusion: { in: ONBOARDING_STEPS }
+  
+  # Onboarding status methods
+  def onboarding_completed?
+    onboarding_completed_at.present? || onboarding_step == 'completed'
+  end
+  
+  def needs_onboarding?
+    !onboarding_completed? && !onboarding_skipped?
+  end
+  
+  def current_onboarding_step
+    return 'completed' if onboarding_completed?
+    return 'skipped' if onboarding_skipped?
+    onboarding_step || 'not_started'
+  end
+  
+  def start_onboarding!
+    update!(onboarding_step: 'workspace_creation')
+  end
+  
+  def complete_onboarding!(skipped: false)
+    update!(
+      onboarding_step: 'completed',
+      onboarding_completed_at: Time.current,
+      onboarding_skipped: skipped
+    )
+  end
+  
+  def skip_onboarding!
+    complete_onboarding!(skipped: true)
+  end
+  
+  def reset_onboarding!
+    update!(
+      onboarding_step: 'not_started',
+      onboarding_completed_at: nil,
+      onboarding_skipped: false
+    )
+  end
+
   private
 
   def normalize_email

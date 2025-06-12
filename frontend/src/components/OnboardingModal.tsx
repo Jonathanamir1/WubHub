@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createWorkspace } from '@/lib/api';
+import { createWorkspace, completeOnboarding, skipOnboarding } from '@/lib/api';
 
 interface OnboardingModalProps {
 	isOpen: boolean;
@@ -127,31 +127,63 @@ export default function OnboardingModal({
 	const handleCreateWorkspace = async () => {
 		if (!selectedTemplate) return;
 
+		console.log('Creating workspace with template:', selectedTemplate.id);
 		setIsCreating(true);
 		const token = localStorage.getItem('wubhub_token');
-		if (!token) return;
+		if (!token) {
+			console.error('No token found');
+			setIsCreating(false);
+			return;
+		}
 
 		try {
+			console.log('Calling createWorkspace API...');
 			const result = await createWorkspace(token, {
 				name: workspaceName,
 				description: workspaceDescription,
 				metadata: {
 					template_type: selectedTemplate.id,
-					...(isFirstTime && { onboarding_completed: true }),
 				},
 			});
 
+			console.log('Workspace creation result:', result);
+
 			if (result.success) {
+				console.log('Workspace created successfully:', result.data);
+
+				// Mark onboarding as completed IMMEDIATELY if this is first time
+				if (isFirstTime) {
+					console.log('Marking onboarding as completed...');
+					localStorage.setItem('wubhub_onboarding_completed', 'true');
+				}
+
+				// Update parent component with new workspace
 				onWorkspaceCreated(result.data);
+
+				console.log('Calling onComplete...');
 				onComplete();
 			} else {
 				console.error('Failed to create workspace:', result.error);
+				alert(`Failed to create workspace: ${result.error}`);
 			}
 		} catch (error) {
 			console.error('Failed to create workspace:', error);
+			alert(`Network error: ${error.message}`);
 		} finally {
 			setIsCreating(false);
 		}
+	};
+
+	const handleSkipOnboarding = async () => {
+		if (!isFirstTime) return; // Skip only available for first-time users
+
+		console.log('Skipping onboarding...');
+
+		// Mark as completed in localStorage immediately
+		localStorage.setItem('wubhub_onboarding_completed', 'true');
+
+		console.log('Onboarding skipped, calling onComplete...');
+		onComplete();
 	};
 
 	const handleBack = () => {
@@ -239,10 +271,22 @@ export default function OnboardingModal({
 						</div>
 
 						{/* Footer */}
-						<div className='text-center mt-8 text-dark-400 text-sm'>
-							{isFirstTime
-								? "Don't worry - you can always create additional workspaces with different templates later!"
-								: 'You can always change your workspace structure after creation.'}
+						<div className='flex items-center justify-between mt-8'>
+							<div className='text-sm text-dark-400'>
+								{isFirstTime
+									? "Don't worry - you can always create additional workspaces with different templates later!"
+									: 'You can always change your workspace structure after creation.'}
+							</div>
+
+							{/* Skip button - only for first-time users */}
+							{isFirstTime && (
+								<button
+									onClick={handleSkipOnboarding}
+									className='text-sm text-dark-400 hover:text-white transition-colors'
+								>
+									Skip for now
+								</button>
+							)}
 						</div>
 					</div>
 				)}

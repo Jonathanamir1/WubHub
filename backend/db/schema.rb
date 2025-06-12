@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_11_163251) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_12_103010) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -117,7 +117,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_11_163251) do
     t.string "profile_image"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "onboarding_completed_at"
+    t.string "onboarding_step", default: "not_started"
+    t.boolean "onboarding_skipped", default: false
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["onboarding_completed_at"], name: "index_users_on_onboarding_completed_at"
+    t.index ["onboarding_step"], name: "index_users_on_onboarding_step"
     t.index ["username"], name: "index_users_on_username", unique: true
   end
 
