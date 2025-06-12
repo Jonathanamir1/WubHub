@@ -1,4 +1,3 @@
-// src/app/layout.tsx
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -21,7 +20,12 @@ export default function RootLayout({
 			className='dark'
 		>
 			<body
-				className={`${inter.className} bg-dark-800 text-white min-h-screen`}
+				className={inter.className}
+				style={{
+					backgroundColor: '#1a1a1a',
+					color: 'white',
+					minHeight: '100vh',
+				}}
 			>
 				{children}
 			</body>
