@@ -1,11 +1,6 @@
 Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
-      # Debug routes (optional - remove in production)
-      get 'debug', to: 'debug#index'
-      get 'debug/current_user', to: 'debug#current_user_info'
-      get 'debug/workspaces', to: 'debug#check_workspaces'
-      
       # Authentication routes
       post 'auth/login', to: 'auth#login'
       post 'auth/register', to: 'auth#register'
@@ -14,28 +9,20 @@ Rails.application.routes.draw do
       # User management routes
       resources :users, only: [:index, :show, :update, :destroy]
 
-      # Core workspace/container workflow
+      # Workspace management with nested collaboration
       resources :workspaces do
-        resources :containers, only: [:index, :create]  
+        # Nested roles for workspace collaboration
+        resources :roles, only: [:index, :create, :update, :destroy]
       end
 
-      #Core container/track_content
-      resources :containers do
-        resources :track_contents, only: [:index, :create]
-      end
-
-      # Onboarding routes
+      # Onboarding routes for workspace creation flow
       scope :onboarding do
         get :status, to: 'onboarding#status'
         post :start, to: 'onboarding#start'
         post :complete, to: 'onboarding#complete'
         post :skip, to: 'onboarding#skip'
-        post :reset, to: 'onboarding#reset'  # For admin/support
+        post :reset, to: 'onboarding#reset'
       end
-
-      # Standalone role management
-      resources :roles, only: [:show, :update, :destroy]
-
     end
   end
 end

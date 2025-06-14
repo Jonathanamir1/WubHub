@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_12_103010) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_14_194901) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -42,34 +42,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_12_103010) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
-  create_table "containers", force: :cascade do |t|
-    t.bigint "workspace_id", null: false
-    t.bigint "parent_container_id"
-    t.string "name", null: false
-    t.string "container_type", null: false
-    t.integer "template_level", null: false
-    t.jsonb "metadata"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["container_type", "template_level"], name: "index_containers_on_container_type_and_template_level"
-    t.index ["parent_container_id"], name: "index_containers_on_parent_container_id"
-    t.index ["workspace_id"], name: "index_containers_on_workspace_id"
-  end
-
-  create_table "file_attachments", force: :cascade do |t|
-    t.string "filename"
-    t.string "attachable_type", null: false
-    t.bigint "attachable_id", null: false
-    t.bigint "file_size"
-    t.string "content_type"
-    t.jsonb "metadata"
-    t.bigint "user_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["attachable_type", "attachable_id"], name: "index_file_attachments_on_attachable"
-    t.index ["user_id"], name: "index_file_attachments_on_user_id"
-  end
-
   create_table "privacies", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "privatable_type", null: false
@@ -93,33 +65,15 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_12_103010) do
     t.index ["user_id"], name: "index_roles_on_user_id"
   end
 
-  create_table "track_contents", force: :cascade do |t|
-    t.bigint "container_id", null: false
-    t.bigint "user_id", null: false
-    t.string "title"
-    t.text "description"
-    t.string "content_type"
-    t.text "text_content"
-    t.jsonb "metadata"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "tags", default: [], array: true
-    t.index ["container_id"], name: "index_track_contents_on_container_id"
-    t.index ["tags"], name: "index_track_contents_on_tags", using: :gin
-    t.index ["user_id"], name: "index_track_contents_on_user_id"
-  end
-
   create_table "users", force: :cascade do |t|
     t.string "email"
     t.string "username"
     t.text "bio"
     t.string "password_digest"
-    t.string "profile_image"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "onboarding_completed_at"
     t.string "onboarding_step", default: "not_started"
-    t.boolean "onboarding_skipped", default: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["onboarding_completed_at"], name: "index_users_on_onboarding_completed_at"
     t.index ["onboarding_step"], name: "index_users_on_onboarding_step"
@@ -132,17 +86,14 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_12_103010) do
     t.bigint "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "template_type", default: "other"
+    t.index ["template_type"], name: "index_workspaces_on_template_type"
     t.index ["user_id"], name: "index_workspaces_on_user_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "containers", "containers", column: "parent_container_id"
-  add_foreign_key "containers", "workspaces"
-  add_foreign_key "file_attachments", "users"
   add_foreign_key "privacies", "users"
   add_foreign_key "roles", "users"
-  add_foreign_key "track_contents", "containers"
-  add_foreign_key "track_contents", "users"
   add_foreign_key "workspaces", "users"
 end
