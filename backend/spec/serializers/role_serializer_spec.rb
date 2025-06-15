@@ -12,7 +12,7 @@ RSpec.describe RoleSerializer, type: :serializer do
       expect(serialization['id']).to eq(role.id)
       expect(serialization['name']).to eq('collaborator')
       expect(serialization['user_id']).to eq(user.id)
-      expect(serialization['username']).to eq(user.username)
+      expect(serialization['email']).to eq(user.email)
       expect(serialization['roleable_type']).to eq('Workspace')
       expect(serialization['roleable_id']).to eq(workspace.id)
     end

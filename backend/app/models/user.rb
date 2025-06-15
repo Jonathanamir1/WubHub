@@ -11,8 +11,10 @@ class User < ApplicationRecord
   has_secure_password
 
   # Validations
-  validates :username, presence: true, uniqueness: true, length: { maximum: 50 }
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }, length: { maximum: 255 }
+  validates :name, presence: true, length: { maximum: 100 }
+  
+  # Note: Names can be duplicates, only email must be unique
   
   # Callbacks
   before_save :normalize_email
@@ -35,9 +37,8 @@ class User < ApplicationRecord
   # Onboarding step constants
   ONBOARDING_STEPS = [
     'not_started',
-    'workspace_creation',  # Current step: create initial workspace
+    'workspace_creation',
     'completed'
-    # Future steps could be: 'profile_setup', 'team_invitation', etc.
   ].freeze
   
   validates :onboarding_step, inclusion: { in: ONBOARDING_STEPS }
@@ -48,12 +49,11 @@ class User < ApplicationRecord
   end
   
   def needs_onboarding?
-    !onboarding_completed? && !onboarding_skipped?
+    !onboarding_completed?
   end
   
   def current_onboarding_step
     return 'completed' if onboarding_completed?
-    return 'skipped' if onboarding_skipped?
     onboarding_step || 'not_started'
   end
   
@@ -61,29 +61,27 @@ class User < ApplicationRecord
     update!(onboarding_step: 'workspace_creation')
   end
   
-  def complete_onboarding!(skipped: false)
+  def complete_onboarding!
     update!(
       onboarding_step: 'completed',
-      onboarding_completed_at: Time.current,
-      onboarding_skipped: skipped
+      onboarding_completed_at: Time.current
     )
   end
   
   def skip_onboarding!
-    complete_onboarding!(skipped: true)
+    complete_onboarding!
   end
   
   def reset_onboarding!
     update!(
       onboarding_step: 'not_started',
-      onboarding_completed_at: nil,
-      onboarding_skipped: false
+      onboarding_completed_at: nil
     )
   end
   
   # Instance methods
   def display_name
-    username
+    name
   end
 
   private

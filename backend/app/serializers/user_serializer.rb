@@ -1,7 +1,7 @@
 class UserSerializer < ActiveModel::Serializer
   include Rails.application.routes.url_helpers
   
-  attributes :id, :username, :bio, :profile_image_url, :created_at
+  attributes :id, :name, :bio, :profile_image_url, :created_at
   
   # Only include email for the user's own profile
   attribute :email, if: :show_email?
@@ -30,6 +30,4 @@ class UserSerializer < ActiveModel::Serializer
     # Show email only if this is the current user viewing their own profile
     scope && scope[:current_user] && scope[:current_user] == object
   end
-  
-
 end

@@ -8,10 +8,10 @@ RSpec.describe User, type: :model do
       expect(user.errors[:email]).to include("can't be blank")
     end
 
-    it 'requires username to be present' do
-      user = User.new(username: nil)
+    it 'requires name to be present' do
+      user = User.new(name: nil)
       expect(user).not_to be_valid
-      expect(user.errors[:username]).to include("can't be blank")
+      expect(user.errors[:name]).to include("can't be blank")
     end
 
     it 'requires email to be unique' do
@@ -21,15 +21,14 @@ RSpec.describe User, type: :model do
       expect(user.errors[:email]).to include('has already been taken')
     end
 
-    it 'requires username to be unique' do
-      create(:user, username: 'testuser')
-      user = User.new(username: 'testuser')
-      expect(user).not_to be_valid
-      expect(user.errors[:username]).to include('has already been taken')
+    it 'allows duplicate names' do
+      create(:user, name: 'John Doe', email: 'john1@example.com')
+      user = build(:user, name: 'John Doe', email: 'john2@example.com')
+      expect(user).to be_valid
     end
 
     it 'requires email to have valid format' do
-      user = User.new(email: 'invalid_email')
+      user = User.new(email: 'invalid_email_format')
       expect(user).not_to be_valid
       expect(user.errors[:email]).to include('is invalid')
     end
@@ -38,11 +37,17 @@ RSpec.describe User, type: :model do
       user = build(:user, email: 'valid@example.com')
       expect(user).to be_valid
     end
+
+    it 'normalizes email case on save' do
+      user = create(:user, email: 'TEST@Example.COM')
+      expect(user.email).to eq('test@example.com')
+    end
   end
 
   describe 'associations' do
     it { should have_many(:workspaces).dependent(:destroy) }
-
+    it { should have_many(:roles).dependent(:destroy) }
+    it { should have_many(:privacies).dependent(:destroy) }
     it { should have_one_attached(:profile_image) }
   end
 
@@ -60,45 +65,32 @@ RSpec.describe User, type: :model do
     end
   end
 
-  describe '#all_workspaces' do
+  describe '#accessible_workspaces' do
     it 'returns workspaces the user owns' do
       user = create(:user)
       workspace1 = create(:workspace, user: user)
       workspace2 = create(:workspace, user: user)
       other_workspace = create(:workspace)
 
-      expect(user.all_workspaces).to contain_exactly(workspace1, workspace2)
+      expect(user.accessible_workspaces).to contain_exactly(workspace1, workspace2)
     end
-  end
 
-
-  describe '#owned_workspaces' do
-    it 'returns only workspaces owned by the user' do
+    it 'returns workspaces the user collaborates on' do
       user = create(:user)
-      workspace = create(:workspace, user: user)
-      other_workspace = create(:workspace)
+      other_user = create(:user)
+      workspace = create(:workspace, user: other_user)
+      create(:role, user: user, roleable: workspace, name: 'collaborator')
 
-      expect(user.owned_workspaces).to include(workspace)
-      expect(user.owned_workspaces).not_to include(other_workspace)
+      expect(user.accessible_workspaces).to include(workspace)
     end
   end
+
   describe '#display_name' do
-    it 'returns name when name is present' do
-      user = User.new(name: 'John Doe', username: 'johndoe')
+    it 'returns the name' do
+      user = User.new(name: 'John Doe', email: 'john@example.com')
       expect(user.display_name).to eq('John Doe')
     end
-
-    it 'returns username when name is blank' do
-      user = User.new(name: '', username: 'johndoe')
-      expect(user.display_name).to eq('johndoe')
-    end
-
-    it 'returns username when name is nil' do
-      user = User.new(name: nil, username: 'johndoe')
-      expect(user.display_name).to eq('johndoe')
-    end
   end
-
 
   describe "database constraints" do
     it "enforces email uniqueness at database level" do
@@ -108,32 +100,30 @@ RSpec.describe User, type: :model do
       expect {
         User.create!(
           email: 'TEST@example.com',  # Different case
-          username: 'different_user',
+          name: 'Different User',
           password: 'password123'
         )
       }.to raise_error(ActiveRecord::RecordNotUnique)
     end
 
-    it "enforces username uniqueness at database level" do
-      user1 = create(:user, username: 'testuser')
+    it "allows duplicate names at database level" do
+      user1 = create(:user, name: 'John Doe', email: 'john1@example.com')
       
       expect {
         User.create!(
-          email: 'different@example.com',
-          username: 'testuser',  # Same username
+          email: 'john2@example.com',
+          name: 'John Doe',  # Same name, different email
           password: 'password123'
         )
-      }.to raise_error(ActiveRecord::RecordInvalid, /Username has already been taken/)
+      }.not_to raise_error
     end
 
     it "handles very long field values gracefully" do
       long_email = 'a' * 100 + '@example.com'
-      long_username = 'b' * 1000
       long_name = 'c' * 1000
       
       user = User.new(
         email: long_email,
-        username: long_username,
         name: long_name,
         password: 'password123'
       )
@@ -167,10 +157,10 @@ RSpec.describe User, type: :model do
       expect(wrong_password_result).to be_falsey
     end
 
-    it "handles unicode in usernames and names correctly" do
+    it "handles unicode in names correctly" do
       unicode_user = build(:user, 
-                          username: 'üser_ñame', 
-                          name: 'José María González')
+                          name: 'José María González',
+                          email: 'jose@example.com')
       expect(unicode_user).to be_valid
     end
 
@@ -178,9 +168,84 @@ RSpec.describe User, type: :model do
       email = 'TEST@Example.COM'
       user = create(:user, email: email)
       
-      # Email should be stored in consistent case
-      expect(user.email.downcase).to eq(email.downcase)
+      # Email should be stored in lowercase
+      expect(user.email).to eq('test@example.com')
     end
   end
 
+  describe "onboarding functionality" do
+    let(:user) { create(:user) }
+
+    describe '#onboarding_completed?' do
+      it 'returns false for new users' do
+        expect(user.onboarding_completed?).to be false
+      end
+
+      it 'returns true when onboarding_completed_at is set' do
+        user.update!(onboarding_completed_at: Time.current)
+        expect(user.onboarding_completed?).to be true
+      end
+
+      it 'returns true when onboarding_step is completed' do
+        user.update!(onboarding_step: 'completed')
+        expect(user.onboarding_completed?).to be true
+      end
+    end
+
+    describe '#needs_onboarding?' do
+      it 'returns true for new users' do
+        expect(user.needs_onboarding?).to be true
+      end
+
+      it 'returns false when onboarding is completed' do
+        user.complete_onboarding!
+        expect(user.needs_onboarding?).to be false
+      end
+    end
+
+    describe '#start_onboarding!' do
+      it 'sets onboarding step to workspace_creation' do
+        user.start_onboarding!
+        expect(user.onboarding_step).to eq('workspace_creation')
+      end
+    end
+
+    describe '#complete_onboarding!' do
+      it 'marks onboarding as completed' do
+        user.complete_onboarding!
+        expect(user.onboarding_completed?).to be true
+        expect(user.onboarding_step).to eq('completed')
+        expect(user.onboarding_completed_at).to be_present
+      end
+    end
+  end
+
+  describe "email-based identification" do
+    it "finds users by email" do
+      user = create(:user, email: 'findme@example.com')
+      found_user = User.find_by(email: 'findme@example.com')
+      expect(found_user).to eq(user)
+    end
+
+    it "handles email case insensitivity for lookups" do
+      user = create(:user, email: 'test@example.com')
+      # Even though email is stored lowercase, we should be able to find with different case
+      found_user = User.find_by(email: 'TEST@Example.com')
+      expect(found_user).to be_nil # Rails find_by is case sensitive by default
+      
+      # But we can find with exact case
+      found_user = User.find_by(email: 'test@example.com')
+      expect(found_user).to eq(user)
+    end
+
+    it "supports multiple users with same name but different emails" do
+      user1 = create(:user, name: 'John Smith', email: 'john.smith1@example.com')
+      user2 = create(:user, name: 'John Smith', email: 'john.smith2@example.com')
+      
+      expect(user1).to be_valid
+      expect(user2).to be_valid
+      expect(user1.name).to eq(user2.name)
+      expect(user1.email).not_to eq(user2.email)
+    end
+  end
 end

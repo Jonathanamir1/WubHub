@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_14_194901) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_15_100330) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -42,6 +42,42 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_14_194901) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "assets", force: :cascade do |t|
+    t.string "filename", null: false
+    t.text "path"
+    t.bigint "file_size"
+    t.string "content_type"
+    t.jsonb "metadata", default: {}
+    t.bigint "workspace_id", null: false
+    t.bigint "container_id"
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["container_id"], name: "index_assets_on_container_id"
+    t.index ["content_type"], name: "index_assets_on_content_type"
+    t.index ["created_at"], name: "index_assets_on_created_at"
+    t.index ["path"], name: "index_assets_on_path"
+    t.index ["user_id"], name: "index_assets_on_user_id"
+    t.index ["workspace_id", "container_id", "filename"], name: "index_assets_on_workspace_container_filename", unique: true
+    t.index ["workspace_id", "path"], name: "index_assets_on_workspace_id_and_path"
+    t.index ["workspace_id"], name: "index_assets_on_workspace_id"
+  end
+
+  create_table "containers", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "path"
+    t.bigint "workspace_id", null: false
+    t.bigint "parent_container_id"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["parent_container_id"], name: "index_containers_on_parent_container_id"
+    t.index ["path"], name: "index_containers_on_path"
+    t.index ["workspace_id", "parent_container_id", "name"], name: "index_containers_on_workspace_parent_name", unique: true
+    t.index ["workspace_id", "path"], name: "index_containers_on_workspace_id_and_path"
+    t.index ["workspace_id"], name: "index_containers_on_workspace_id"
+  end
+
   create_table "privacies", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "privatable_type", null: false
@@ -67,17 +103,16 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_14_194901) do
 
   create_table "users", force: :cascade do |t|
     t.string "email"
-    t.string "username"
     t.text "bio"
     t.string "password_digest"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "onboarding_completed_at"
     t.string "onboarding_step", default: "not_started"
+    t.string "name", null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["onboarding_completed_at"], name: "index_users_on_onboarding_completed_at"
     t.index ["onboarding_step"], name: "index_users_on_onboarding_step"
-    t.index ["username"], name: "index_users_on_username", unique: true
   end
 
   create_table "workspaces", force: :cascade do |t|
@@ -93,6 +128,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_14_194901) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "assets", "containers"
+  add_foreign_key "assets", "users"
+  add_foreign_key "assets", "workspaces"
+  add_foreign_key "containers", "containers", column: "parent_container_id"
+  add_foreign_key "containers", "workspaces"
   add_foreign_key "privacies", "users"
   add_foreign_key "roles", "users"
   add_foreign_key "workspaces", "users"

@@ -6,10 +6,8 @@ RSpec.describe "Database Migrations", type: :model do
       # Check critical indexes exist
       indexes = ActiveRecord::Base.connection.indexes('users')
       email_index = indexes.find { |i| i.columns == ['email'] && i.unique }
-      username_index = indexes.find { |i| i.columns == ['username'] && i.unique }
       
       expect(email_index).to be_present, "Missing unique index on users.email"
-      expect(username_index).to be_present, "Missing unique index on users.username"
     end
 
 
