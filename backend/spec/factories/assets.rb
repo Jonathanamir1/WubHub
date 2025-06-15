@@ -1,4 +1,3 @@
-# spec/factories/assets.rb
 FactoryBot.define do
   factory :asset do
     sequence(:filename) { |n| "file_#{n}.mp3" }
@@ -7,9 +6,9 @@ FactoryBot.define do
     file_size { rand(1024..10_485_760) }  # 1KB to 10MB
     content_type { 'audio/mpeg' }
     
-    # Optional container - can be root level or in a folder
+    # Make sure container belongs to the same workspace
     trait :in_container do
-      association :container
+      container { association(:container, workspace: workspace) }
     end
     
     trait :in_root do

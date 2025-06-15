@@ -9,6 +9,7 @@ RSpec.describe RoleSerializer, type: :serializer do
       
       serializer = RoleSerializer.new(role)
       serialization = JSON.parse(serializer.to_json)
+      
       expect(serialization['id']).to eq(role.id)
       expect(serialization['name']).to eq('collaborator')
       expect(serialization['user_id']).to eq(user.id)

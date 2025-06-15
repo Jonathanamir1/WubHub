@@ -1,3 +1,4 @@
+# app/models/user.rb
 class User < ApplicationRecord
   # Associations
   has_many :workspaces, dependent: :destroy
@@ -66,10 +67,6 @@ class User < ApplicationRecord
       onboarding_step: 'completed',
       onboarding_completed_at: Time.current
     )
-  end
-  
-  def skip_onboarding!
-    complete_onboarding!
   end
   
   def reset_onboarding!

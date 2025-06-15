@@ -6,8 +6,7 @@ class Api::V1::OnboardingController < ApplicationController
     render json: {
       needs_onboarding: current_user.needs_onboarding?,
       current_step: current_user.current_onboarding_step,
-      completed_at: current_user.onboarding_completed_at,
-      skipped: current_user.onboarding_skipped?
+      completed_at: current_user.onboarding_completed_at
     }
   end
 
@@ -26,16 +25,6 @@ class Api::V1::OnboardingController < ApplicationController
     render json: { 
       message: 'Onboarding completed',
       completed_at: current_user.onboarding_completed_at
-    }
-  end
-
-  # POST /api/v1/onboarding/skip
-  def skip
-    current_user.skip_onboarding!
-    render json: { 
-      message: 'Onboarding skipped',
-      completed_at: current_user.onboarding_completed_at,
-      skipped: true
     }
   end
 

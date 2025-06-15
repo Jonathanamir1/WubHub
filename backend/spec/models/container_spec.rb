@@ -80,8 +80,7 @@ RSpec.describe Container, type: :model do
       grandchild = create(:container, name: 'Stems', parent_container: child1, workspace: workspace)
       
       descendants = parent.descendants
-      expect(descendants).to include(child1, child2, grandchild)
-      expect(descendants.size).to eq(3)
+      expect(descendants).to contain_exactly(child1, child2, grandchild)
     end
   end
 
@@ -104,8 +103,9 @@ RSpec.describe Container, type: :model do
     
     it 'deletes all files when container is deleted' do
       user = create(:user)
-      asset1 = create(:asset, container: container, user: user)
-      asset2 = create(:asset, container: container, user: user)
+      # Create assets in the same workspace as the container
+      asset1 = create(:asset, container: container, workspace: workspace, user: user)
+      asset2 = create(:asset, container: container, workspace: workspace, user: user)
       
       expect { container.destroy }.to change(Asset, :count).by(-2)
     end

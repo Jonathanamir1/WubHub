@@ -1,3 +1,4 @@
+# app/services/template_detector.rb
 class TemplateDetector
   # Define the template types for your MVP
   VALID_TEMPLATES = [
@@ -10,13 +11,10 @@ class TemplateDetector
   ].freeze
 
   def self.detect_template(workspace)
-    return 'other' unless workspace.metadata.present?
+    return 'other' unless workspace.template_type.present?
     
-    template_type = workspace.metadata["template_type"]
-    return 'other' unless template_type.present?
-    
-    if VALID_TEMPLATES.include?(template_type)
-      template_type
+    if VALID_TEMPLATES.include?(workspace.template_type)
+      workspace.template_type
     else
       'other'
     end

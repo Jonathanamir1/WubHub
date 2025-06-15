@@ -15,13 +15,13 @@ Rails.application.routes.draw do
         resources :roles, only: [:index, :create, :update, :destroy]
       end
 
-      # Onboarding routes for workspace creation flow
+      # Simplified onboarding routes
       scope :onboarding do
         get :status, to: 'onboarding#status'
         post :start, to: 'onboarding#start'
         post :complete, to: 'onboarding#complete'
-        post :skip, to: 'onboarding#skip'
         post :reset, to: 'onboarding#reset'
+        # Removed skip route - frontend calls complete directly
       end
     end
   end
