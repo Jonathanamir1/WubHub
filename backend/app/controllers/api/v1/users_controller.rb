@@ -7,22 +7,17 @@ class Api::V1::UsersController < ApplicationController
   def index
     @users = User.all
     
-    # Filter by username search if provided
+    # Filter by name search if provided
     if params[:search].present?
-      @users = @users.where("username ILIKE ?", "%#{params[:search]}%")
+      @users = @users.where("name ILIKE ?", "%#{params[:search]}%")
     end
     
-    render json: @users, each_serializer: UserSearchSerializer, status: :ok
+    render json: @users, each_serializer: UserSerializer, status: :ok
   end
 
   # GET /api/v1/users/:id
   def show
-    # Use different serializer based on whether viewing own profile
-    if @user == current_user
-      render json: @user, serializer: UserSerializer, status: :ok  # Your existing one (has email)
-    else
-      render json: @user, serializer: UserPublicSerializer, status: :ok  # New one (no email)
-    end
+    render json: @user, serializer: UserSerializer, scope: { current_user: current_user }, status: :ok
   end
 
   # PUT /api/v1/users/:id
@@ -33,8 +28,7 @@ class Api::V1::UsersController < ApplicationController
     end
 
     if @user.update(user_params)
-      render json: @user, serializer: UserSerializer, status: :ok  # Your existing one
-
+      render json: @user, serializer: UserSerializer, scope: { current_user: current_user }, status: :ok
     else
       render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity
     end
@@ -67,6 +61,6 @@ class Api::V1::UsersController < ApplicationController
   end
 
   def user_params
-    params.require(:user).permit(:name, :bio, :username, :email, :password, :password_confirmation)
+    params.require(:user).permit(:name, :bio, :email, :password, :password_confirmation)
   end
 end

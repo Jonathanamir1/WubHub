@@ -22,32 +22,32 @@ RSpec.describe "Api::V1::Users", type: :request do
       end
 
       it "returns all users when no search parameter" do
-        user1 = create(:user, username: "musician1")
-        user2 = create(:user, username: "producer2")
-        user3 = create(:user, username: "vocalist3")
+        user1 = create(:user, name: "John Musician")
+        user2 = create(:user, name: "Jane Producer")
+        user3 = create(:user, name: "Bob Vocalist")
         
         get "/api/v1/users", headers: headers
         json_response = JSON.parse(response.body)
         
-        usernames = json_response.map { |u| u['username'] }
-        expect(usernames).to include("musician1", "producer2", "vocalist3")
+        names = json_response.map { |u| u['name'] }
+        expect(names).to include("John Musician", "Jane Producer", "Bob Vocalist")
       end
 
-      it "filters users by username when search parameter provided" do
-        user1 = create(:user, username: "musician_rock")
-        user2 = create(:user, username: "musician_jazz")
-        user3 = create(:user, username: "producer_house")
+      it "filters users by name when search parameter provided" do
+        user1 = create(:user, name: "John Musician")
+        user2 = create(:user, name: "Jane Musician")
+        user3 = create(:user, name: "Bob Producer")
         
-        get "/api/v1/users", params: { search: "musician" }, headers: headers
+        get "/api/v1/users", params: { search: "Musician" }, headers: headers
         json_response = JSON.parse(response.body)
         
-        usernames = json_response.map { |u| u['username'] }
-        expect(usernames).to include("musician_rock", "musician_jazz")
-        expect(usernames).not_to include("producer_house")
+        names = json_response.map { |u| u['name'] }
+        expect(names).to include("John Musician", "Jane Musician")
+        expect(names).not_to include("Bob Producer")
       end
 
       it "returns empty array when no users match search" do
-        create(:user, username: "testuser")
+        create(:user, name: "Test User")
         
         get "/api/v1/users", params: { search: "nonexistent" }, headers: headers
         json_response = JSON.parse(response.body)
@@ -67,13 +67,12 @@ RSpec.describe "Api::V1::Users", type: :request do
       end
 
       it "includes public profile information" do
-        other_user = create(:user, username: "testmusician", name: "Test Musician", bio: "I make beats")
+        other_user = create(:user, name: "Test Musician", bio: "I make beats")
         
         get "/api/v1/users", headers: headers
         json_response = JSON.parse(response.body)
         
         user_data = json_response.find { |u| u['id'] == other_user.id }
-        expect(user_data['username']).to eq("testmusician")
         expect(user_data['name']).to eq("Test Musician")
         expect(user_data['bio']).to eq("I make beats")
       end
@@ -91,7 +90,7 @@ RSpec.describe "Api::V1::Users", type: :request do
   describe "GET /api/v1/users/:id" do
     context "when user exists" do
       let(:current_user) { create(:user) }
-      let(:target_user) { create(:user, username: "targetuser", name: "Target User", bio: "Music producer") }
+      let(:target_user) { create(:user, name: "Target User", bio: "Music producer") }
       let(:token) { generate_token_for_user(current_user) }
       let(:headers) { { 'Authorization' => "Bearer #{token}" } }
 
@@ -105,7 +104,6 @@ RSpec.describe "Api::V1::Users", type: :request do
         json_response = JSON.parse(response.body)
         
         expect(json_response['id']).to eq(target_user.id)
-        expect(json_response['username']).to eq("targetuser")
         expect(json_response['name']).to eq("Target User")
         expect(json_response['bio']).to eq("Music producer")
       end
@@ -197,7 +195,7 @@ RSpec.describe "Api::V1::Users", type: :request do
           user: {
             name: "Updated Name",
             bio: "Updated bio",
-            username: "updatedusername"
+            email: "updated@example.com"
           }
         }
         
@@ -208,7 +206,7 @@ RSpec.describe "Api::V1::Users", type: :request do
         user.reload
         expect(user.name).to eq("Updated Name")
         expect(user.bio).to eq("Updated bio")
-        expect(user.username).to eq("updatedusername")
+        expect(user.email).to eq("updated@example.com")
       end
 
       it "returns the updated user data" do
@@ -250,7 +248,7 @@ RSpec.describe "Api::V1::Users", type: :request do
         
         user.reload
         expect(user.authenticate("newpassword123")).to eq(user)
-        expect(user.authenticate("oldpassword")).to be_falsey
+        expect(user.authenticate("password123")).to be_falsey
       end
 
       it "returns error for invalid password confirmation" do
@@ -269,19 +267,19 @@ RSpec.describe "Api::V1::Users", type: :request do
         expect(json_response['errors']).to include("Password confirmation doesn't match Password")
       end
 
-      it "returns error when username is taken" do
-        other_user = create(:user, username: "taken_username")
+      it "allows duplicate names (only email must be unique)" do
+        other_user = create(:user, name: "John Doe", email: "john1@example.com")
         
         update_params = {
-          user: { username: "taken_username" }
+          user: { name: "John Doe" }
         }
         
         put "/api/v1/users/#{user.id}", params: update_params, headers: headers
         
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:ok)
         
-        json_response = JSON.parse(response.body)
-        expect(json_response['errors']).to include("Username has already been taken")
+        user.reload
+        expect(user.name).to eq("John Doe")
       end
 
       it "returns error when email is taken" do
@@ -408,10 +406,28 @@ RSpec.describe "Api::V1::Users", type: :request do
       let(:user) { create(:user) }
       let(:token) { generate_token_for_user(user) }
       let(:headers) { { 'Authorization' => "Bearer #{token}" } }
-
-
-
-
+      it "deletes the user account successfully" do
+        # Create user explicitly for this test
+        user = create(:user)
+        user_id = user.id
+        token = generate_token_for_user(user)
+        headers = { 'Authorization' => "Bearer #{token}" }
+        
+        # Ensure user exists before deletion
+        expect(User.exists?(user_id)).to be true
+        initial_count = User.count
+        
+        delete "/api/v1/users/#{user_id}", headers: headers
+        
+        expect(response).to have_http_status(:ok)
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['message']).to eq('Account deleted successfully')
+        
+        # Verify user is actually gone
+        expect(User.count).to eq(initial_count - 1)
+        expect(User.exists?(user_id)).to be false
+      end
 
       it "deletes associated workspaces" do
         workspace = create(:workspace, user: user)
@@ -420,12 +436,6 @@ RSpec.describe "Api::V1::Users", type: :request do
           delete "/api/v1/users/#{user.id}", headers: headers
         }.to change(Workspace, :count).by(-1)
       end
-
-
-
-
-
-
     end
 
     context "when trying to delete another user's account" do
@@ -502,10 +512,10 @@ RSpec.describe "Api::V1::Users", type: :request do
       end
     end
 
-    context "when handling special characters in usernames" do
-      it "allows valid special characters in usernames" do
+    context "when handling special characters in names" do
+      it "allows unicode characters in names" do
         update_params = {
-          user: { username: "user_name-123" }
+          user: { name: "José María González" }
         }
         
         put "/api/v1/users/#{user.id}", params: update_params, headers: headers
@@ -513,40 +523,74 @@ RSpec.describe "Api::V1::Users", type: :request do
         expect(response).to have_http_status(:ok)
         
         user.reload
-        expect(user.username).to eq("user_name-123")
+        expect(user.name).to eq("José María González")
       end
     end
 
     context "when searching with edge cases" do
       it "handles case-insensitive search" do
-        create(:user, username: "MixMaster")
+        create(:user, name: "MixMaster")
         
         get "/api/v1/users", params: { search: "mixmaster" }, headers: headers
         json_response = JSON.parse(response.body)
         
-        usernames = json_response.map { |u| u['username'] }
-        expect(usernames).to include("MixMaster")
+        names = json_response.map { |u| u['name'] }
+        expect(names).to include("MixMaster")
       end
 
-      it "handles partial username matches" do
-        create(:user, username: "guitarist_pro")
-        create(:user, username: "bassist_amateur")
+      it "handles partial name matches" do
+        create(:user, name: "Guitarist Pro")
+        create(:user, name: "Bassist Amateur")
         
         get "/api/v1/users", params: { search: "ist" }, headers: headers
         json_response = JSON.parse(response.body)
         
-        usernames = json_response.map { |u| u['username'] }
-        expect(usernames).to include("guitarist_pro", "bassist_amateur")
+        names = json_response.map { |u| u['name'] }
+        expect(names).to include("Guitarist Pro", "Bassist Amateur")
       end
 
       it "handles empty search parameter" do
-        create(:user, username: "testuser")
+        create(:user, name: "Test User")
         
         get "/api/v1/users", params: { search: "" }, headers: headers
         json_response = JSON.parse(response.body)
         
         # Should return all users when search is empty
         expect(json_response.length).to be >= 1
+      end
+    end
+
+    context "duplicate names handling" do
+      it "handles multiple users with same name in listings" do
+        user1 = create(:user, name: "John Smith", email: "john1@example.com")
+        user2 = create(:user, name: "John Smith", email: "john2@example.com")
+        
+        get "/api/v1/users", headers: headers
+        json_response = JSON.parse(response.body)
+        
+        john_smiths = json_response.select { |u| u['name'] == "John Smith" }
+        expect(john_smiths.length).to eq(2)
+        
+        # Should have different IDs and no emails in listing
+        expect(john_smiths[0]['id']).not_to eq(john_smiths[1]['id'])
+        expect(john_smiths[0]).not_to have_key('email')
+        expect(john_smiths[1]).not_to have_key('email')
+      end
+
+      it "shows email only when viewing own profile among users with same name" do
+        user1 = create(:user, name: "John Smith", email: "john1@example.com")
+        user2 = create(:user, name: "John Smith", email: "john2@example.com")
+        token1 = generate_token_for_user(user1)
+        
+        # User1 viewing their own profile - should see email
+        get "/api/v1/users/#{user1.id}", headers: { 'Authorization' => "Bearer #{token1}" }
+        json_response = JSON.parse(response.body)
+        expect(json_response['email']).to eq("john1@example.com")
+        
+        # User1 viewing user2's profile - should not see email
+        get "/api/v1/users/#{user2.id}", headers: { 'Authorization' => "Bearer #{token1}" }
+        json_response = JSON.parse(response.body)
+        expect(json_response).not_to have_key('email')
       end
     end
   end

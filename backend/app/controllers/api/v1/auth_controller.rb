@@ -7,9 +7,9 @@ module Api
         user = User.find_by(email: params[:email])
 
         if user && user.authenticate(params[:password])
-          token = generate_token(user)  # This method needs to exist in the controller
+          token = generate_token(user)
           render json: {
-            user: UserSerializer.new(user).as_json,
+            user: UserSerializer.new(user, scope: { current_user: user }).as_json,
             token: token
           }, status: :ok
         else
@@ -23,7 +23,7 @@ module Api
         if user.save
           token = generate_token(user)
           render json: {
-            user: UserSerializer.new(user).as_json,
+            user: UserSerializer.new(user, scope: { current_user: user }).as_json,
             token: token
           }, status: :created
         else
@@ -33,8 +33,6 @@ module Api
         # Handle database constraint violations gracefully
         if e.message.include?('email')
           render json: { errors: ['Email has already been taken'] }, status: :unprocessable_entity
-        elsif e.message.include?('username')
-          render json: { errors: ['Username has already been taken'] }, status: :unprocessable_entity
         else
           render json: { errors: ['A record with these details already exists'] }, status: :unprocessable_entity
         end
@@ -42,17 +40,16 @@ module Api
 
       def current
         render json: {
-          user: UserSerializer.new(current_user).as_json
+          user: UserSerializer.new(current_user, scope: { current_user: current_user }).as_json
         }, status: :ok
       end
 
       private
 
       def user_params
-        params.permit(:email, :username, :password, :password_confirmation)
+        params.permit(:email, :name, :password, :password_confirmation)
       end
 
-      # ADD THIS METHOD:
       def generate_token(user)
         payload = {
           user_id: user.id,
