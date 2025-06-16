@@ -4,6 +4,7 @@ class User < ApplicationRecord
   has_many :workspaces, dependent: :destroy
   has_many :roles, dependent: :destroy
   has_many :privacies, dependent: :destroy
+  has_many :upload_sessions, dependent: :destroy
   
   # Active Storage for profile images
   has_one_attached :profile_image

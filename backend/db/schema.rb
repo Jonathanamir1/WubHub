@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_15_100330) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_16_103143) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -63,6 +63,24 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_100330) do
     t.index ["workspace_id"], name: "index_assets_on_workspace_id"
   end
 
+  create_table "chunks", force: :cascade do |t|
+    t.bigint "upload_session_id", null: false
+    t.integer "chunk_number", null: false
+    t.bigint "size", null: false
+    t.string "checksum"
+    t.string "status", default: "pending", null: false
+    t.text "storage_key"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["checksum"], name: "index_chunks_on_checksum"
+    t.index ["created_at"], name: "index_chunks_on_created_at"
+    t.index ["status"], name: "index_chunks_on_status"
+    t.index ["upload_session_id", "chunk_number"], name: "index_chunks_on_upload_session_id_and_chunk_number", unique: true
+    t.index ["upload_session_id", "status"], name: "index_chunks_on_upload_session_id_and_status"
+    t.index ["upload_session_id"], name: "index_chunks_on_upload_session_id"
+  end
+
   create_table "containers", force: :cascade do |t|
     t.string "name", null: false
     t.text "path"
@@ -101,6 +119,28 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_100330) do
     t.index ["user_id"], name: "index_roles_on_user_id"
   end
 
+  create_table "upload_sessions", force: :cascade do |t|
+    t.string "filename", limit: 255, null: false
+    t.bigint "total_size", null: false
+    t.integer "chunks_count", null: false
+    t.bigint "workspace_id", null: false
+    t.bigint "container_id"
+    t.bigint "user_id", null: false
+    t.string "status", default: "pending", null: false
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["container_id"], name: "index_upload_sessions_on_container_id"
+    t.index ["created_at"], name: "index_upload_sessions_on_created_at"
+    t.index ["status", "created_at"], name: "index_upload_sessions_on_status_and_created_at"
+    t.index ["status"], name: "index_upload_sessions_on_status"
+    t.index ["user_id", "status"], name: "index_upload_sessions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_upload_sessions_on_user_id"
+    t.index ["workspace_id", "container_id", "filename"], name: "index_upload_sessions_unique_filename_per_location", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'uploading'::character varying, 'assembling'::character varying])::text[]))"
+    t.index ["workspace_id", "status"], name: "index_upload_sessions_on_workspace_id_and_status"
+    t.index ["workspace_id"], name: "index_upload_sessions_on_workspace_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email"
     t.text "bio"
@@ -131,9 +171,13 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_15_100330) do
   add_foreign_key "assets", "containers"
   add_foreign_key "assets", "users"
   add_foreign_key "assets", "workspaces"
+  add_foreign_key "chunks", "upload_sessions"
   add_foreign_key "containers", "containers", column: "parent_container_id"
   add_foreign_key "containers", "workspaces"
   add_foreign_key "privacies", "users"
   add_foreign_key "roles", "users"
+  add_foreign_key "upload_sessions", "containers"
+  add_foreign_key "upload_sessions", "users"
+  add_foreign_key "upload_sessions", "workspaces"
   add_foreign_key "workspaces", "users"
 end

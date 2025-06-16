@@ -2,6 +2,10 @@
 Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
+      get 'uploads/create'
+      get 'uploads/show'
+      get 'uploads/update'
+      get 'uploads/destroy'
       # Authentication routes
       post 'auth/login', to: 'auth#login'
       post 'auth/register', to: 'auth#register'
@@ -19,7 +23,10 @@ Rails.application.routes.draw do
         resources :assets, only: [:index, :create]
         
         get :tree, to: 'containers#tree'
-        
+
+        # Nested uploads for workspace-scoped operations
+        resources :uploads, only: [:index, :create]
+
         # Nested roles for workspace collaboration
         resources :roles, only: [:index, :create, :update, :destroy]
       end
@@ -27,6 +34,9 @@ Rails.application.routes.draw do
       # Standalone container operations (show, update, delete)
       resources :containers, only: [:show, :update, :destroy]
       
+      # Standalone upload session operations (show, update, delete)
+      resources :uploads, only: [:show, :update, :destroy]
+
       # Container assets - custom route
       get 'containers/:container_id/assets', to: 'assets#container_assets'
 
