@@ -1,3 +1,4 @@
+
 module AuthHelpers
   def generate_token_for_user(user)
     payload = {

@@ -33,7 +33,7 @@ class Asset < ApplicationRecord
   end
   
   def uploaded_by
-    user.email
+    user.email  # Changed from user.username to user.email
   end
   
   def file_extension
@@ -83,6 +83,9 @@ class Asset < ApplicationRecord
   
   def extract_file_metadata!
     return unless file_blob.attached?
+    
+    # Force analyze the blob to get metadata
+    file_blob.analyze unless file_blob.analyzed?
     
     update_columns(
       file_size: file_blob.byte_size,
