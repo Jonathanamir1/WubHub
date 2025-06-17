@@ -5,27 +5,33 @@ class UploadAssembler
   
   def initialize(upload_session)
     @upload_session = upload_session
+    @storage_service = ChunkStorageService.new
   end
   
   def assemble!
     validate_assembly_preconditions!
     
     begin
-      # Create the Asset record
+      # Create the Asset record first
       asset = create_asset
       
-      # Assemble chunks into a single file and attach it
-      assembled_file = assemble_chunks
-      attach_file_to_asset(asset, assembled_file)
+      # Assemble chunks into a single file
+      assembled_file_path = assemble_chunks_to_file
+      
+      # Attach the assembled file to the asset
+      attach_file_to_asset(asset, assembled_file_path)
       
       # Extract and set file metadata
       extract_file_metadata(asset)
       
-      # Mark upload session as completed
+      # Clean up chunk files BEFORE marking as completed
+      cleanup_chunk_files
+      
+      # Mark upload session as completed LAST
       upload_session.complete!
       
-      # Clean up chunk files
-      cleanup_chunk_files
+      # Clean up the temporary assembled file
+      File.delete(assembled_file_path) if File.exist?(assembled_file_path)
       
       asset
     rescue AssemblyError => e
@@ -57,7 +63,7 @@ class UploadAssembler
   
   private
   
-  attr_reader :upload_session
+  attr_reader :upload_session, :storage_service
   
   def validate_assembly_preconditions!
     unless upload_session.status == 'assembling'
@@ -89,7 +95,7 @@ class UploadAssembler
   
   def validate_chunk_files_exist!
     upload_session.chunks.completed.each do |chunk|
-      unless chunk.storage_key.present? && File.exist?(chunk.storage_key)
+      unless chunk.storage_key.present? && storage_service.chunk_exists?(chunk.storage_key)
         upload_session.fail! unless upload_session.status == 'failed'
         raise AssemblyError, "Chunk file not found: #{chunk.storage_key || 'No storage key'}"
       end
@@ -156,9 +162,12 @@ class UploadAssembler
     end
   end
   
-  def assemble_chunks
-    # Create temporary file for assembled content
-    temp_file = Tempfile.new(['assembled', File.extname(upload_session.filename)])
+  def assemble_chunks_to_file
+    # Create a temporary file in the same directory as Active Storage will use
+    temp_dir = Rails.root.join('tmp', 'assembly')
+    FileUtils.mkdir_p(temp_dir)
+    
+    assembled_file_path = File.join(temp_dir, "assembled_#{upload_session.id}_#{SecureRandom.hex(8)}#{File.extname(upload_session.filename)}")
     
     begin
       total_size = 0
@@ -166,23 +175,29 @@ class UploadAssembler
       # Get chunks in correct order
       ordered_chunks = upload_session.chunks.completed.order(:chunk_number)
       
-      # Debug: Log what we're about to assemble
       Rails.logger.debug "🔧 Assembling #{ordered_chunks.count} chunks for upload session #{upload_session.id}"
       Rails.logger.debug "🔧 Expected total size: #{upload_session.total_size} bytes"
+      Rails.logger.debug "🔧 Assembly file path: #{assembled_file_path}"
       
-      ordered_chunks.each_with_index do |chunk, index|
-        chunk_file_path = chunk.storage_key
-        Rails.logger.debug "🔧 Processing chunk #{chunk.chunk_number}: #{chunk_file_path}"
-        
-        File.open(chunk_file_path, 'rb') do |chunk_file|
-          # Read and append chunk data
-          chunk_data = chunk_file.read
-          chunk_actual_size = chunk_data.size
-          Rails.logger.debug "🔧 Chunk #{chunk.chunk_number} actual size: #{chunk_actual_size} bytes"
-          Rails.logger.debug "🔧 Chunk #{chunk.chunk_number} expected size: #{chunk.size} bytes"
+      File.open(assembled_file_path, 'wb') do |assembled_file|
+        ordered_chunks.each do |chunk|
+          Rails.logger.debug "🔧 Processing chunk #{chunk.chunk_number}: #{chunk.storage_key}"
           
-          temp_file.write(chunk_data)
-          total_size += chunk_actual_size
+          # Read chunk using storage service
+          chunk_io = storage_service.read_chunk(chunk.storage_key)
+          
+          begin
+            # Copy chunk data to assembled file
+            chunk_data = chunk_io.read
+            chunk_actual_size = chunk_data.size
+            Rails.logger.debug "🔧 Chunk #{chunk.chunk_number} actual size: #{chunk_actual_size} bytes"
+            
+            assembled_file.write(chunk_data)
+            total_size += chunk_actual_size
+          ensure
+            # Always close the chunk IO
+            chunk_io.close if chunk_io.respond_to?(:close)
+          end
         end
       end
       
@@ -192,53 +207,78 @@ class UploadAssembler
       # Validate total size matches expected
       if total_size != upload_session.total_size
         Rails.logger.error "❌ Size mismatch! Expected: #{upload_session.total_size}, Got: #{total_size}"
+        File.delete(assembled_file_path) if File.exist?(assembled_file_path)
         raise AssemblyError, "File size mismatch. Expected: #{upload_session.total_size}, Got: #{total_size}"
       end
       
-      temp_file.rewind
-      temp_file
+      assembled_file_path
       
     rescue => e
-      temp_file.close
-      temp_file.unlink
+      # Clean up on error
+      File.delete(assembled_file_path) if File.exist?(assembled_file_path)
       raise e
     end
   end
   
-  def attach_file_to_asset(asset, assembled_file)
-    asset.file_blob.attach(
-      io: assembled_file,
-      filename: upload_session.filename,
-      content_type: asset.content_type
-    )
+  def attach_file_to_asset(asset, assembled_file_path)
+    Rails.logger.debug "🔧 Attaching file: #{assembled_file_path}"
+    Rails.logger.debug "🔧 File exists: #{File.exist?(assembled_file_path)}"
+    Rails.logger.debug "🔧 File size: #{File.size(assembled_file_path)} bytes"
     
-    # Close and clean up the temporary file
-    assembled_file.close
-    assembled_file.unlink
+    begin
+      File.open(assembled_file_path, 'rb') do |file|
+        asset.file_blob.attach(
+          io: file,
+          filename: upload_session.filename,
+          content_type: asset.content_type
+        )
+      end
+      
+      # Verify attachment succeeded
+      unless asset.file_blob.attached?
+        raise AssemblyError, "Failed to attach file to asset"
+      end
+      
+      Rails.logger.debug "🔧 File attached successfully"
+      
+    rescue => e
+      Rails.logger.error "❌ Exception during attachment: #{e.message}"
+      raise AssemblyError, "Failed to attach file: #{e.message}"
+    end
   end
   
   def extract_file_metadata(asset)
     if asset.file_blob.attached?
-      # Let Active Storage analyze the blob
+      # Force analyze the blob to get metadata
       asset.file_blob.analyze unless asset.file_blob.analyzed?
       
       # Update asset with correct metadata
       asset.update!(
         file_size: asset.file_blob.byte_size,
-        content_type: asset.file_blob.content_type
+        content_type: asset.file_blob.content_type || asset.content_type
       )
+      
+      Rails.logger.debug "🔧 File metadata extracted: size=#{asset.file_size}, type=#{asset.content_type}"
     end
   end
   
   def cleanup_chunk_files
+    Rails.logger.debug "🧹 Cleaning up chunks for upload session #{upload_session.id}"
+    
+    deleted_count = 0
     upload_session.chunks.each do |chunk|
-      if chunk.storage_key.present? && File.exist?(chunk.storage_key)
+      if chunk.storage_key.present?
         begin
-          File.delete(chunk.storage_key)
+          if storage_service.delete_chunk(chunk.storage_key)
+            deleted_count += 1
+            Rails.logger.debug "🗑️ Deleted chunk: #{chunk.storage_key}"
+          end
         rescue => e
-          Rails.logger.warn "Failed to delete chunk file #{chunk.storage_key}: #{e.message}"
+          Rails.logger.warn "⚠️ Failed to delete chunk #{chunk.storage_key}: #{e.message}"
         end
       end
     end
+    
+    Rails.logger.debug "🧹 Deleted #{deleted_count} chunk files"
   end
 end

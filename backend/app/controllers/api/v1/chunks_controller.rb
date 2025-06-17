@@ -1,6 +1,4 @@
 # app/controllers/api/v1/chunks_controller.rb
-# Complete version with checksum validation
-
 class Api::V1::ChunksController < ApplicationController
   before_action :authenticate_user!
   before_action :set_upload_session
@@ -54,10 +52,13 @@ class Api::V1::ChunksController < ApplicationController
     end
     
     begin
-      # Store chunk data
-      storage_key = store_chunk_data(chunk_file, chunk_number)
+      # 🎯 NEW: Use real chunk storage service instead of placeholder
+      storage_service = ChunkStorageService.new
+      storage_key = storage_service.store_chunk(@upload_session, chunk_number, chunk_file)
       
-      # Create or update chunk
+      Rails.logger.info "✅ Chunk stored successfully at: #{storage_key}"
+      
+      # Create or update chunk record
       @chunk = @upload_session.chunks.find_or_initialize_by(chunk_number: chunk_number)
       
       @chunk.assign_attributes(
@@ -77,6 +78,10 @@ class Api::V1::ChunksController < ApplicationController
       # Check if all chunks completed
       if @upload_session.all_chunks_uploaded?
         @upload_session.start_assembly!
+        
+        # 🎯 NEW: Trigger assembly job when all chunks are complete
+        Rails.logger.info "🚀 All chunks uploaded! Starting assembly job for session #{@upload_session.id}"
+        UploadAssemblyJob.perform_later(@upload_session.id)
       end
       
       status_code = @chunk.previously_new_record? ? :created : :ok
@@ -88,17 +93,21 @@ class Api::V1::ChunksController < ApplicationController
         checksum: @chunk.checksum,
         status: @chunk.status,
         upload_session_id: @chunk.upload_session_id,
+        storage_key: @chunk.storage_key, # Include for debugging
         created_at: @chunk.created_at,
         updated_at: @chunk.updated_at
       }, status: status_code
       
+    rescue ChunkStorageService::StorageError => e
+      Rails.logger.error "❌ Chunk storage failed: #{e.message}"
+      render json: { error: "Failed to store chunk: #{e.message}" }, status: :internal_server_error
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error "❌ Chunk validation failed: #{e.message}"
       render json: { error: "Failed to save chunk: #{e.message}" }, status: :unprocessable_entity
     rescue StandardError => e
       Rails.logger.error "❌ Chunk upload failed: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      render json: { error: "Failed to store chunk: #{e.message}" }, status: :internal_server_error
+      render json: { error: "Failed to process chunk: #{e.message}" }, status: :internal_server_error
     end
   end
   
@@ -112,6 +121,7 @@ class Api::V1::ChunksController < ApplicationController
         checksum: @chunk.checksum,
         status: @chunk.status,
         upload_session_id: @chunk.upload_session_id,
+        storage_key: @chunk.storage_key, # Include for debugging
         created_at: @chunk.created_at,
         updated_at: @chunk.updated_at
       }, status: :ok
@@ -135,6 +145,7 @@ class Api::V1::ChunksController < ApplicationController
         checksum: chunk.checksum,
         status: chunk.status,
         upload_session_id: chunk.upload_session_id,
+        storage_key: chunk.storage_key, # Include for debugging
         created_at: chunk.created_at,
         updated_at: chunk.updated_at
       }
@@ -191,9 +202,8 @@ class Api::V1::ChunksController < ApplicationController
     checksum
   end
   
-  def store_chunk_data(chunk_file, chunk_number)
-    # Simplified storage for testing - just return a key
-    # In production this would store to S3 or local filesystem
-    "temp_storage_#{@upload_session.id}_chunk_#{chunk_number}"
-  end
+  # 🗑️ REMOVED: Old placeholder method
+  # def store_chunk_data(chunk_file, chunk_number)
+  #   "temp_storage_#{@upload_session.id}_chunk_#{chunk_number}"
+  # end
 end

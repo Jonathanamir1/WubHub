@@ -423,9 +423,10 @@ RSpec.describe "Api::V1::Chunks", type: :request do
       Rack::Test::UploadedFile.new(temp_file.path, 'application/octet-stream')
     end
     
-    it "handles storage failures gracefully" do
-      allow_any_instance_of(Api::V1::ChunksController).to receive(:store_chunk_data).and_raise(StandardError.new("Storage failed"))
-
+    it 'handles storage failures gracefully' do
+      # Mock ChunkStorageService to raise storage error
+      allow_any_instance_of(ChunkStorageService).to receive(:store_chunk).and_raise(ChunkStorageService::StorageError.new("Storage backend failed"))
+      
       chunk_params = {
         file: chunk_file,
         checksum: 'abc123def456'
