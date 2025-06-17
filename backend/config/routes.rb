@@ -2,10 +2,6 @@
 Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
-      get 'uploads/create'
-      get 'uploads/show'
-      get 'uploads/update'
-      get 'uploads/destroy'
       # Authentication routes
       post 'auth/login', to: 'auth#login'
       post 'auth/register', to: 'auth#register'
@@ -34,8 +30,15 @@ Rails.application.routes.draw do
       # Standalone container operations (show, update, delete)
       resources :containers, only: [:show, :update, :destroy]
       
-      # Standalone upload session operations (show, update, delete)
-      resources :uploads, only: [:show, :update, :destroy]
+      # Standalone upload session operations with chunk routes
+      resources :uploads, only: [:show, :update, :destroy] do
+        member do
+          # Chunk upload routes - THIS IS THE NEW SECTION
+          post 'chunks/:chunk_number', to: 'chunks#upload', as: :upload_chunk
+          get 'chunks/:chunk_number', to: 'chunks#show', as: :chunk_status
+          get 'chunks', to: 'chunks#index', as: :chunks
+        end
+      end
 
       # Container assets - custom route
       get 'containers/:container_id/assets', to: 'assets#container_assets'
@@ -57,3 +60,4 @@ Rails.application.routes.draw do
     end
   end
 end
+

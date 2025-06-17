@@ -1,9 +1,13 @@
-# app/serializers/upload_session_serializer.rb
 class UploadSessionSerializer < ActiveModel::Serializer
   attributes :id, :filename, :total_size, :chunks_count, :status, :metadata,
              :workspace_id, :container_id, :user_id, :created_at, :updated_at,
              :upload_location, :target_path, :progress_percentage, :all_chunks_uploaded,
              :missing_chunks, :uploaded_size, :recommended_chunk_size
+
+  # FIX: Add the missing question mark to call the correct model method
+  def all_chunks_uploaded
+    object.all_chunks_uploaded?
+  end
 
   # Include uploader information
   def uploader_email
