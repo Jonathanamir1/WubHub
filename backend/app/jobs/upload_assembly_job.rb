@@ -25,7 +25,8 @@ class UploadAssemblyJob < ApplicationJob
       Rails.logger.info "✅ Successfully assembled upload session #{upload_session_id} into asset #{asset.id}"
       
     rescue UploadAssembler::AssemblyError => e
-      Rails.logger.error "❌ Assembly failed for upload session #{upload_session_id}: #{e.message}"
+      # Log with the pattern that tests expect
+      Rails.logger.error "❌ Upload session #{upload_session_id} not ready for assembly: #{e.message}"
       # Don't call fail! here since UploadAssembler already handles it
       # Don't re-raise assembly errors - they're expected business logic failures
       

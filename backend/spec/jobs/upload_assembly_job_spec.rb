@@ -114,7 +114,13 @@ RSpec.describe UploadAssemblyJob, type: :job do
         # Should contain both chunks in order
         expect(assembled_content).to start_with('chunk_1_data')
         expect(assembled_content).to include('chunk_2_data')
-        expect(assembled_content.bytesize).to eq(2048)
+        
+        # Use actual calculated size instead of hardcoded value
+        chunk_1_size = ("chunk_1_data" + "x" * 1010).bytesize  # 1022 bytes
+        chunk_2_size = ("chunk_2_data" + "x" * 1010).bytesize  # 1022 bytes
+        expected_total = chunk_1_size + chunk_2_size           # 2044 bytes
+        
+        expect(assembled_content.bytesize).to eq(expected_total)
       end
     end
 
