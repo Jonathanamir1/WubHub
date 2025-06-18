@@ -35,10 +35,10 @@ RSpec.describe "Api::V1::Chunks", type: :request do
         expect(response).to have_http_status(:created)
         json_response = JSON.parse(response.body)
         
-        expect(json_response['chunk_number']).to eq(1)
-        expect(json_response['status']).to eq('completed')
-        expect(json_response['size']).to be > 0
-        expect(json_response['upload_session_id']).to eq(upload_session.id)
+        expect(json_response['chunk']['chunk_number']).to eq(1)
+        expect(json_response['chunk']['status']).to eq('completed')
+        expect(json_response['chunk']['size']).to be > 0
+        expect(json_response['chunk']['upload_session_id']).to eq(upload_session.id)
       end
 
       it "updates existing chunk if already exists" do
@@ -58,7 +58,7 @@ RSpec.describe "Api::V1::Chunks", type: :request do
                params: chunk_params, headers: headers
         }.not_to change(Chunk, :count)
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         existing_chunk.reload
         expect(existing_chunk.status).to eq('completed')
@@ -182,7 +182,7 @@ RSpec.describe "Api::V1::Chunks", type: :request do
         # Second upload should update existing
         post "/api/v1/uploads/#{upload_session.id}/chunks/1", 
              params: chunk_params, headers: headers
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         # Should only have one chunk
         expect(Chunk.where(upload_session: upload_session, chunk_number: 1).count).to eq(1)

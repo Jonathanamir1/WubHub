@@ -1,11 +1,10 @@
-# app/controllers/api/v1/assets_controller.rb
 class Api::V1::AssetsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_workspace, only: [:index, :create]
-  before_action :set_container, only: [:container_assets]  # Changed this
+  before_action :set_container, only: [:container_assets]
   before_action :set_asset, only: [:show, :update, :destroy, :download]
   before_action :authorize_workspace_access!, only: [:index, :create]
-  before_action :authorize_container_access!, only: [:container_assets]  # Changed this
+  before_action :authorize_container_access!, only: [:container_assets]
   before_action :authorize_asset_access!, only: [:show, :update, :destroy, :download]
 
   # GET /api/v1/workspaces/:workspace_id/assets
@@ -22,7 +21,7 @@ class Api::V1::AssetsController < ApplicationController
   end
 
   # GET /api/v1/containers/:container_id/assets
-  def container_assets  # Renamed this method
+  def container_assets
     @assets = @container.assets.includes(:user, file_blob_attachment: :blob)
     render json: @assets, each_serializer: AssetSerializer, status: :ok
   end
@@ -40,10 +39,24 @@ class Api::V1::AssetsController < ApplicationController
     if @asset.save
       # Handle file upload after successful save
       if params[:file].present?
-        @asset.file_blob.attach(params[:file])
-        
-        # Extract metadata safely
-        extract_metadata_safely(@asset)
+        begin
+          Rails.logger.debug "🔧 Attaching file to asset..."
+          
+          # Attach the file first
+          @asset.file_blob.attach(params[:file])
+          
+          Rails.logger.debug "🔧 File attached. Extracting metadata..."
+          
+          # Extract metadata using the model method
+          @asset.extract_file_metadata!
+          
+          Rails.logger.debug "🔧 Metadata extracted successfully"
+          
+        rescue => e
+          Rails.logger.error "❌ Error processing file: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          # Don't fail the request for metadata extraction issues
+        end
       end
       
       render json: @asset, serializer: AssetSerializer, status: :created
@@ -124,36 +137,5 @@ class Api::V1::AssetsController < ApplicationController
 
   def asset_params
     params.require(:asset).permit(:filename, :container_id)
-  end
-
-  def extract_metadata_safely(asset)
-    return unless asset.file_blob.attached?
-    
-    begin
-      # Debug: Let's see what we're getting
-      Rails.logger.debug "=== File Metadata Debug ==="
-      Rails.logger.debug "Blob attached: #{asset.file_blob.attached?}"
-      Rails.logger.debug "Blob present: #{asset.file_blob.blob.present?}"
-      
-      if asset.file_blob.blob.present?
-        file_size = asset.file_blob.blob.byte_size
-        content_type = asset.file_blob.blob.content_type
-        
-        Rails.logger.debug "File size from blob: #{file_size}"
-        Rails.logger.debug "Content type from blob: #{content_type}"
-        
-        # Update the asset with metadata
-        asset.update_columns(
-          file_size: file_size,
-          content_type: content_type
-        )
-        
-        Rails.logger.debug "Asset file_size after update: #{asset.reload.file_size}"
-      end
-      
-    rescue => e
-      Rails.logger.error("Error extracting file metadata: #{e.message}")
-      Rails.logger.error(e.backtrace.join("\n"))
-    end
   end
 end

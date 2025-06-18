@@ -19,14 +19,11 @@ RSpec.describe "Route Debug", type: :request do
 
     # Test if the upload session can be accessed
     get "/api/v1/uploads/#{upload_session.id}", headers: headers
-    puts "Upload session GET: #{response.status}"
     
     # Test if chunk routes exist
     post "/api/v1/uploads/#{upload_session.id}/chunks/1", 
          params: { file: "dummy" }, 
          headers: headers
-    puts "Chunk upload POST: #{response.status}"
-    puts "Response body: #{response.body}" if response.status == 404
     
     # Just check that we get SOME response (not necessarily success)
     expect([200, 404, 422, 500]).to include(response.status)
@@ -44,12 +41,7 @@ RSpec.describe "Route Debug", type: :request do
     upload_routes = routes.select { |r| r[:path].include?('upload') }
     chunk_routes = routes.select { |r| r[:path].include?('chunk') }
     
-    puts "\n=== UPLOAD ROUTES ==="
-    upload_routes.each { |r| puts "#{r[:verb]} #{r[:path]} -> #{r[:controller_action]}" }
-    
-    puts "\n=== CHUNK ROUTES ==="
-    chunk_routes.each { |r| puts "#{r[:verb]} #{r[:path]} -> #{r[:controller_action]}" }
-    
     expect(chunk_routes).not_to be_empty, "No chunk routes found!"
+    expect(upload_routes).not_to be_empty, "No upload routes found!"
   end
 end

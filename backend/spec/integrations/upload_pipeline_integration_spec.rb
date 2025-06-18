@@ -223,17 +223,12 @@ RSpec.describe "Upload Pipeline Integration", type: :integration do
       # Debug any failures
       failed_results = results.select { |r| !r[:success] }
       if failed_results.any?
-        puts "❌ Upload failures detected:"
         failed_results.each do |failure|
-          puts "   Chunk #{failure[:chunk_number]}: #{failure[:error]}"
         end
-        puts "Failed results: #{failed_results.inspect}"
       end
       
       # Debug all results
-      puts "All upload results:"
       results.each_with_index do |result, i|
-        puts "  #{i}: #{result}"
       end
       
       expect(results.all? { |r| r[:success] }).to be true

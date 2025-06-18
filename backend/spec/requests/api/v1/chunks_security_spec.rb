@@ -26,7 +26,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['chunk']['status']).to eq('completed')
@@ -49,7 +49,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['chunk']['status']).to eq('completed')
@@ -73,7 +73,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['chunk']['status']).to eq('completed')
@@ -99,7 +99,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['security_warning']['risk_level']).to eq('medium')
@@ -123,7 +123,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['chunk']['status']).to eq('completed')
@@ -148,7 +148,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['security_warning']['risk_level']).to eq('high')
@@ -171,7 +171,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['security_warning']['threats']).to include('Multiple file extensions detected')
@@ -262,7 +262,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['security_warning']['threats']).to include('Suspicious binary content in text file')
@@ -289,7 +289,7 @@ RSpec.describe "Chunks Security Integration", type: :request do
              params: { file: chunk_file, checksum: calculate_md5(chunk_file) },
              headers: headers
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:created)
         
         json_response = JSON.parse(response.body)
         expect(json_response['chunk']['status']).to eq('completed')

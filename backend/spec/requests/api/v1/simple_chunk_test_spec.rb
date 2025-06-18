@@ -24,16 +24,13 @@ RSpec.describe "Simple Chunk Upload Test", type: :request do
     temp_file.rewind
     chunk_file = Rack::Test::UploadedFile.new(temp_file.path, 'application/octet-stream')
 
-    puts "Attempting POST to: /api/v1/uploads/#{upload_session.id}/chunks/1"
     
     post "/api/v1/uploads/#{upload_session.id}/chunks/1",
          params: { file: chunk_file },
          headers: headers
 
-    puts "Response status: #{response.status}"
-    puts "Response body: #{response.body}"
     
     # Don't expect success yet, just want to see what error we get
-    expect([200, 422, 500]).to include(response.status)
+    expect([201, 422, 500]).to include(response.status)
   end
 end

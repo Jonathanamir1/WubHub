@@ -18,41 +18,46 @@ Rails.application.routes.draw do
       # Core workspace/container workflow
       resources :workspaces do
         resources :containers, only: [:index, :create]
-        # 🆕 ADD: Nested uploads for workspace-scoped operations
+        # 🔧 FIX: Add assets routes under workspaces
+        resources :assets, only: [:index, :create]
+        # 🔧 FIX: Add uploads routes under workspaces
         resources :uploads, only: [:index, :create]
-        # 🆕 ADD: Nested roles for workspace collaboration
+        # Nested roles for workspace collaboration
         resources :roles, only: [:index, :create, :update, :destroy]
       end
+      
+      # 🔧 FIX: Add tree route outside of resources to match test expectation
+      get 'workspaces/:workspace_id/tree', to: 'containers#tree', as: :workspace_tree
 
       # Core container/track_content
       resources :containers do
         resources :track_contents, only: [:index, :create]
       end
 
-      # 🆕 ADD: Standalone container operations (show, update, delete)
+      # Standalone container operations (show, update, delete)
       resources :containers, only: [:show, :update, :destroy]
       
-      # 🆕 ADD: Standalone upload session operations with chunk routes
+      # Standalone upload session operations with chunk routes
       resources :uploads, only: [:show, :update, :destroy] do
         member do
-          # Chunk upload routes - THE CRITICAL MISSING SECTION
+          # Chunk upload routes
           post 'chunks/:chunk_number', to: 'chunks#upload'
           get 'chunks/:chunk_number', to: 'chunks#show'
           get 'chunks', to: 'chunks#index'
         end
       end
 
-      # 🆕 ADD: Container assets - custom route
+      # Container assets - custom route
       get 'containers/:container_id/assets', to: 'assets#container_assets'
 
-      # 🆕 ADD: Standalone asset operations (show, update, delete, download)
+      # Standalone asset operations (show, update, delete, download)
       resources :assets, only: [:show, :update, :destroy] do
         member do
           get :download
         end
       end
 
-      # 🆕 ADD: Simplified onboarding routes
+      # Onboarding routes
       scope :onboarding do
         get :status, to: 'onboarding#status'
         post :start, to: 'onboarding#start'

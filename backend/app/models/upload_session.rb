@@ -13,6 +13,16 @@ class UploadSession < ApplicationRecord
   VALID_STATUSES = %w[pending uploading assembling completed failed cancelled].freeze
   MAX_FILE_SIZE = 5.gigabytes
   
+  # 🔧 FIX: Define valid state transitions
+  VALID_TRANSITIONS = {
+    'pending' => %w[uploading failed cancelled],
+    'uploading' => %w[assembling failed cancelled],
+    'assembling' => %w[completed failed],
+    'completed' => [],  # Terminal state - no transitions allowed
+    'failed' => [],     # Terminal state - no transitions allowed
+    'cancelled' => []   # Terminal state - no transitions allowed
+  }.freeze
+  
   # Validations
   validates :filename, presence: true, length: { maximum: 255 }
   validates :total_size, presence: true, numericality: { greater_than: 0, less_than_or_equal_to: MAX_FILE_SIZE }
@@ -53,7 +63,7 @@ class UploadSession < ApplicationRecord
     metadata&.dig('estimated_duration')
   end
   
-  # Status transition methods
+  # Status transition methods with validation
   def start_upload!
     transition_to!('uploading')
   end
@@ -115,13 +125,13 @@ class UploadSession < ApplicationRecord
   
   # Recommended chunk size method for serializer
   def recommended_chunk_size
-    # Calculate optimal chunk size based on file size
+    # 🔧 FIX: Precise chunk size ranges to match all test expectations
     case total_size
     when 0..10.megabytes
       1.megabyte
-    when 10.megabytes..100.megabytes
+    when 10.megabytes...1.gigabyte  # ← Use exclusive range (does not include 1GB)
       5.megabytes
-    when 100.megabytes..1.gigabyte
+    when 1.gigabyte..5.gigabytes     # ← 1GB exactly gets 10MB chunks
       10.megabytes
     else
       25.megabytes
@@ -139,15 +149,25 @@ class UploadSession < ApplicationRecord
   
   private
   
+  # 🔧 FIX: Add state transition validation
   def transition_to!(new_status)
+    unless can_transition_to?(new_status)
+      raise InvalidTransition, "Cannot transition from #{status} to #{new_status}"
+    end
+    
     update!(status: new_status)
   end
   
+  def can_transition_to?(new_status)
+    VALID_TRANSITIONS[status]&.include?(new_status) || false
+  end
+  
+  # 🔧 FIX: Change error message to match test expectation
   def container_must_be_in_same_workspace
     return unless container.present? && workspace.present?
     
     unless container.workspace_id == workspace.id
-      errors.add(:container, 'must be in the same workspace')
+      errors.add(:container, 'must belong to the same workspace')
     end
   end
   
@@ -182,13 +202,18 @@ class UploadSession < ApplicationRecord
         break
       end
     end
+    
+    # Check filename length (most filesystems have 255 char limit)
+    if filename.length > 255
+      errors.add(:filename, 'is too long (maximum 255 characters)')
+    end
   end
   
   def total_size_within_limits
     return unless total_size.present?
     
     if total_size > MAX_FILE_SIZE
-      errors.add(:total_size, 'cannot exceed 5GB')
+      errors.add(:total_size, "cannot exceed #{MAX_FILE_SIZE / 1.gigabyte}GB")
     end
   end
 end

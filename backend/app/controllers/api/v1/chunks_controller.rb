@@ -73,6 +73,9 @@ class Api::V1::ChunksController < ApplicationController
       # Create or update chunk record
       @chunk = @upload_session.chunks.find_or_initialize_by(chunk_number: chunk_number)
       
+      # 🔧 FIX: Track if this is a new chunk before assigning attributes
+      is_new_chunk = @chunk.new_record?
+      
       @chunk.assign_attributes(
         size: chunk_file.size,
         checksum: checksum || calculate_checksum(chunk_file),
@@ -104,14 +107,16 @@ class Api::V1::ChunksController < ApplicationController
         @upload_session.start_assembly!
       end
       
-      # 🛡️ Build response with security information
+      # 🔧 FIX: Build response structure that matches security test expectations (nested format)
       response_data = {
         chunk: {
           id: @chunk.id,
           chunk_number: @chunk.chunk_number,
           size: @chunk.size,
-          status: @chunk.status,
           checksum: @chunk.checksum,
+          status: @chunk.status,
+          upload_session_id: @chunk.upload_session_id,
+          storage_key: @chunk.storage_key,
           created_at: @chunk.created_at,
           updated_at: @chunk.updated_at
         },
@@ -122,23 +127,23 @@ class Api::V1::ChunksController < ApplicationController
         }
       }
       
-      # Add security warning to response if present
-      if security_result[:has_warnings]
+      # 🛡️ Add security warning to response if there are warnings (not critical)
+      if security_result[:has_warnings] && !security_result[:blocked]
         response_data[:security_warning] = {
           risk_level: security_result[:risk_level],
-          safe: security_result[:safe],
-          requires_verification: security_result[:requires_verification],
+          threats: security_result[:threats],
           warnings: security_result[:warnings],
-          threats: security_result[:threats]
+          requires_verification: security_result[:requires_verification],
+          safe: security_result[:safe]
         }
       end
       
-      Rails.logger.info "✅ Chunk upload completed successfully"
-      render json: response_data, status: :ok
+      # 🔧 FIX: Always return 201 for successful chunk uploads (idempotent operation)
+      render json: response_data, status: :created
       
     rescue ChunkStorageService::StorageError => e
       Rails.logger.error "❌ Storage error: #{e.message}"
-      render json: { error: "Failed to store chunk: #{e.message}" }, status: :unprocessable_entity
+      render json: { error: "Failed to store chunk: #{e.message}" }, status: :internal_server_error
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error "❌ Database error: #{e.message}"
       render json: { error: "Failed to save chunk: #{e.record.errors.full_messages.join(', ')}" }, status: :unprocessable_entity
@@ -179,6 +184,11 @@ class Api::V1::ChunksController < ApplicationController
   def index
     chunks = @upload_session.chunks.order(:chunk_number)
     
+    # 🔧 FIX: Add status filtering
+    if params[:status].present?
+      chunks = chunks.where(status: params[:status])
+    end
+    
     chunks_data = chunks.map do |chunk|
       chunk_data = {
         id: chunk.id,
@@ -203,7 +213,7 @@ class Api::V1::ChunksController < ApplicationController
     render json: {
       chunks: chunks_data,
       total_chunks: @upload_session.chunks_count,
-      completed_chunks: chunks.where(status: 'completed').count,
+      completed_chunks: @upload_session.chunks.where(status: 'completed').count,
       progress_percentage: @upload_session.progress_percentage,
       upload_session_status: @upload_session.status
     }, status: :ok
