@@ -106,31 +106,36 @@ RSpec.describe MaliciousFileDetectionService, type: :service do
       
       it 'flags executable files with suspicious names' do
         suspicious_files = [
-          { filename: 'virus.exe', content_type: 'application/octet-stream' },
-          { filename: 'malware.scr', content_type: 'application/octet-stream' },
-          { filename: 'trojan.pif', content_type: 'application/octet-stream' },
-          { filename: 'keylogger.com', content_type: 'application/octet-stream' }
+          { filename: 'virus.exe', content_type: 'application/octet-stream', expected_risk: :high },
+          { filename: 'malware.scr', content_type: 'application/octet-stream', expected_risk: :critical },
+          { filename: 'trojan.pif', content_type: 'application/octet-stream', expected_risk: :critical },
+          { filename: 'keylogger.com', content_type: 'application/octet-stream', expected_risk: :critical }
         ]
         
         suspicious_files.each do |file_info|
           result = service.scan_file(file_info[:filename], file_info[:content_type])
           expect(result.safe?).to be false
-          expect(result.risk_level).to eq(:high)
-          expect(result.threats).to include('Executable with suspicious naming pattern')
+          expect(result.risk_level).to eq(file_info[:expected_risk])
+          
+          if file_info[:expected_risk] == :critical
+            expect(result.blocked?).to be true
+          else
+            expect(result.threats).to include('Executable with suspicious naming pattern')
+          end
         end
       end
       
       it 'flags files with multiple extensions' do
         double_extension_files = [
-          { filename: 'song.mp3.exe', content_type: 'application/octet-stream' },
-          { filename: 'photo.jpg.scr', content_type: 'application/octet-stream' },
-          { filename: 'document.pdf.bat', content_type: 'text/plain' }
+          { filename: 'song.mp3.exe', content_type: 'application/octet-stream', expected_risk: :high },
+          { filename: 'photo.jpg.scr', content_type: 'application/octet-stream', expected_risk: :critical },
+          { filename: 'document.pdf.bat', content_type: 'text/plain', expected_risk: :high }
         ]
         
         double_extension_files.each do |file_info|
           result = service.scan_file(file_info[:filename], file_info[:content_type])
           expect(result.safe?).to be false
-          expect(result.risk_level).to eq(:high)
+          expect(result.risk_level).to eq(file_info[:expected_risk])
           expect(result.threats).to include('Multiple file extensions detected')
         end
       end

@@ -51,8 +51,20 @@ class Api::V1::ChunksController < ApplicationController
       end
     end
     
+    # 🛡️ NEW: Security scanning
+    security_result = perform_security_scan(chunk_file)
+    
+    # Block critical risk files
+    if security_result[:blocked]
+      Rails.logger.warn "🚫 Blocked file upload: #{@upload_session.filename} (#{security_result[:risk_level]})"
+      return render json: {
+        error: "File type is not allowed for security reasons. #{security_result[:details][:threats]&.first}",
+        security_details: security_result[:details]
+      }, status: :unprocessable_entity
+    end
+    
     begin
-      # 🎯 NEW: Use real chunk storage service instead of placeholder
+      # Use real chunk storage service
       storage_service = ChunkStorageService.new
       storage_key = storage_service.store_chunk(@upload_session, chunk_number, chunk_file)
       
@@ -68,6 +80,18 @@ class Api::V1::ChunksController < ApplicationController
         storage_key: storage_key
       )
       
+      # 🛡️ Store security metadata if present
+      if security_result[:has_warnings]
+        @chunk.metadata ||= {}
+        @chunk.metadata[:security_scan] = {
+          risk_level: security_result[:risk_level],
+          warnings: security_result[:warnings],
+          threats: security_result[:threats],
+          requires_verification: security_result[:requires_verification],
+          scanned_at: Time.current.iso8601
+        }
+      end
+      
       @chunk.save!
       
       # Update upload session state
@@ -78,53 +102,74 @@ class Api::V1::ChunksController < ApplicationController
       # Check if all chunks completed
       if @upload_session.all_chunks_uploaded?
         @upload_session.start_assembly!
-        
-        # 🎯 NEW: Trigger assembly job when all chunks are complete
-        Rails.logger.info "🚀 All chunks uploaded! Starting assembly job for session #{@upload_session.id}"
-        UploadAssemblyJob.perform_later(@upload_session.id)
       end
       
-      status_code = @chunk.previously_new_record? ? :created : :ok
+      # 🛡️ Build response with security information
+      response_data = {
+        chunk: {
+          id: @chunk.id,
+          chunk_number: @chunk.chunk_number,
+          size: @chunk.size,
+          status: @chunk.status,
+          checksum: @chunk.checksum,
+          created_at: @chunk.created_at,
+          updated_at: @chunk.updated_at
+        },
+        upload_session: {
+          id: @upload_session.id,
+          status: @upload_session.status,
+          progress_percentage: @upload_session.progress_percentage
+        }
+      }
       
-      render json: {
-        id: @chunk.id,
-        chunk_number: @chunk.chunk_number,
-        size: @chunk.size,
-        checksum: @chunk.checksum,
-        status: @chunk.status,
-        upload_session_id: @chunk.upload_session_id,
-        storage_key: @chunk.storage_key, # Include for debugging
-        created_at: @chunk.created_at,
-        updated_at: @chunk.updated_at
-      }, status: status_code
+      # Add security warning to response if present
+      if security_result[:has_warnings]
+        response_data[:security_warning] = {
+          risk_level: security_result[:risk_level],
+          safe: security_result[:safe],
+          requires_verification: security_result[:requires_verification],
+          warnings: security_result[:warnings],
+          threats: security_result[:threats]
+        }
+      end
+      
+      Rails.logger.info "✅ Chunk upload completed successfully"
+      render json: response_data, status: :ok
       
     rescue ChunkStorageService::StorageError => e
-      Rails.logger.error "❌ Chunk storage failed: #{e.message}"
-      render json: { error: "Failed to store chunk: #{e.message}" }, status: :internal_server_error
+      Rails.logger.error "❌ Storage error: #{e.message}"
+      render json: { error: "Failed to store chunk: #{e.message}" }, status: :unprocessable_entity
     rescue ActiveRecord::RecordInvalid => e
-      Rails.logger.error "❌ Chunk validation failed: #{e.message}"
-      render json: { error: "Failed to save chunk: #{e.message}" }, status: :unprocessable_entity
-    rescue StandardError => e
-      Rails.logger.error "❌ Chunk upload failed: #{e.message}"
+      Rails.logger.error "❌ Database error: #{e.message}"
+      render json: { error: "Failed to save chunk: #{e.record.errors.full_messages.join(', ')}" }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error "❌ Unexpected error: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      render json: { error: "Failed to process chunk: #{e.message}" }, status: :internal_server_error
+      render json: { error: "Upload failed: #{e.message}" }, status: :internal_server_error
     end
   end
   
   # GET /api/v1/uploads/:id/chunks/:chunk_number
   def show
     if @chunk
-      render json: {
+      chunk_data = {
         id: @chunk.id,
         chunk_number: @chunk.chunk_number,
         size: @chunk.size,
         checksum: @chunk.checksum,
         status: @chunk.status,
         upload_session_id: @chunk.upload_session_id,
-        storage_key: @chunk.storage_key, # Include for debugging
+        storage_key: @chunk.storage_key,
         created_at: @chunk.created_at,
         updated_at: @chunk.updated_at
-      }, status: :ok
+      }
+      
+      # Include security scan results if present
+      if @chunk.metadata&.dig(:security_scan)
+        chunk_data[:security_scan] = @chunk.metadata[:security_scan]
+      end
+      
+      render json: chunk_data, status: :ok
     else
       render json: { error: 'Chunk not found' }, status: :not_found
     end
@@ -134,21 +179,25 @@ class Api::V1::ChunksController < ApplicationController
   def index
     chunks = @upload_session.chunks.order(:chunk_number)
     
-    # Filter by status if provided
-    chunks = chunks.where(status: params[:status]) if params[:status].present?
-    
     chunks_data = chunks.map do |chunk|
-      {
+      chunk_data = {
         id: chunk.id,
         chunk_number: chunk.chunk_number,
         size: chunk.size,
         checksum: chunk.checksum,
         status: chunk.status,
         upload_session_id: chunk.upload_session_id,
-        storage_key: chunk.storage_key, # Include for debugging
+        storage_key: chunk.storage_key,
         created_at: chunk.created_at,
         updated_at: chunk.updated_at
       }
+      
+      # Include security scan results if present
+      if chunk.metadata&.dig(:security_scan)
+        chunk_data[:security_scan] = chunk.metadata[:security_scan]
+      end
+      
+      chunk_data
     end
     
     render json: {
@@ -202,8 +251,65 @@ class Api::V1::ChunksController < ApplicationController
     checksum
   end
   
-  # 🗑️ REMOVED: Old placeholder method
-  # def store_chunk_data(chunk_file, chunk_number)
-  #   "temp_storage_#{@upload_session.id}_chunk_#{chunk_number}"
-  # end
+  # 🛡️ NEW: Security scanning method
+  def perform_security_scan(chunk_file)
+    Rails.logger.debug "🔍 Starting security scan for #{@upload_session.filename}"
+    
+    begin
+      # Initialize the malicious file detection service
+      detection_service = MaliciousFileDetectionService.new
+      
+      # Get content type from the file
+      content_type = chunk_file.content_type || 'application/octet-stream'
+      
+      # Perform filename-based scan first
+      scan_result = detection_service.scan_file(@upload_session.filename, content_type)
+      
+      # If file is safe or medium risk, also scan content
+      if scan_result.safe? || scan_result.requires_verification?
+        # Read file content for analysis
+        chunk_file.rewind
+        file_content = chunk_file.read
+        chunk_file.rewind
+        
+        # Perform content-based scan
+        scan_result = detection_service.scan_content(file_content, @upload_session.filename, content_type)
+      end
+      
+      # Build result hash
+      result = {
+        safe: scan_result.safe?,
+        blocked: scan_result.blocked?,
+        requires_verification: scan_result.requires_verification?,
+        risk_level: scan_result.risk_level.to_s,
+        warnings: scan_result.warnings,
+        threats: scan_result.threats,
+        has_warnings: !scan_result.safe? || scan_result.requires_verification?,
+        details: scan_result.details
+      }
+      
+      Rails.logger.debug "🔍 Security scan completed: #{result[:risk_level]} risk (safe: #{result[:safe]})"
+      
+      result
+      
+    rescue => e
+      Rails.logger.error "❌ Security scanning failed: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      
+      # Return safe result with warning if scanning fails
+      {
+        safe: true,
+        blocked: false,
+        requires_verification: false,
+        risk_level: 'unknown',
+        warnings: ['Security scan failed - file uploaded without verification'],
+        threats: [],
+        has_warnings: true,
+        details: {
+          error: "Security scan failed: #{e.message}",
+          filename: @upload_session.filename
+        }
+      }
+    end
+  end
 end

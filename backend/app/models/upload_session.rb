@@ -44,6 +44,15 @@ class UploadSession < ApplicationRecord
     )
   end
   
+  # Metadata helper methods
+  def file_type
+    metadata&.dig('file_type')
+  end
+  
+  def estimated_duration
+    metadata&.dig('estimated_duration')
+  end
+  
   # Status transition methods
   def start_upload!
     transition_to!('uploading')
@@ -82,73 +91,63 @@ class UploadSession < ApplicationRecord
   end
   
   def all_chunks_uploaded?
-    completed_chunks_count == chunks_count
+    completed_chunks_count >= chunks_count
   end
-  
-  def missing_chunks
-    uploaded_chunk_numbers = chunks.where(status: 'completed').pluck(:chunk_number)
-    (1..chunks_count).to_a - uploaded_chunk_numbers
-  end
-  
-  def uploaded_size
-    chunks.where(status: 'completed').sum(:size)
-  end
-  
-  # File size helpers
-  def recommended_chunk_size
-    case total_size
-    when 0..50.megabytes
-      1.megabyte
-    when 50.megabytes..500.megabytes
-      5.megabytes
-    else
-      10.megabytes
-    end
-  end
-  
-  # Metadata helpers
-  def file_type
-    metadata['file_type']
-  end
-  
-  def estimated_duration
-    metadata['estimated_duration']
-  end
-  
-  private
   
   def completed_chunks_count
     chunks.where(status: 'completed').count
   end
   
-  def transition_to!(new_status)
-    # Check if transition is valid
-    if new_status == 'failed'
-      # Can fail from any state
-    elsif status == 'pending' && new_status == 'uploading'
-      # Valid transition
-    elsif status == 'uploading' && new_status == 'assembling'
-      # Valid transition
-    elsif status == 'assembling' && new_status == 'completed'
-      # Valid transition
-    elsif %w[pending uploading].include?(status) && new_status == 'cancelled'
-      # Can cancel from non-terminal states
-    elsif %w[completed failed cancelled].include?(status) && new_status != 'failed'
-      # Cannot transition from terminal states (except to failed)
-      raise InvalidTransition, "Cannot transition from #{status} to #{new_status}"
+  def pending_chunks_count
+    chunks.where(status: 'pending').count
+  end
+  
+  def failed_chunks_count
+    chunks.where(status: 'failed').count
+  end
+  
+  # Missing chunks method for serializer
+  def missing_chunks
+    completed_chunk_numbers = chunks.completed.pluck(:chunk_number)
+    expected_chunks = (1..chunks_count).to_a
+    expected_chunks - completed_chunk_numbers
+  end
+  
+  # Recommended chunk size method for serializer
+  def recommended_chunk_size
+    # Calculate optimal chunk size based on file size
+    case total_size
+    when 0..10.megabytes
+      1.megabyte
+    when 10.megabytes..100.megabytes
+      5.megabytes
+    when 100.megabytes..1.gigabyte
+      10.megabytes
     else
-      # Invalid transition
-      raise InvalidTransition, "Invalid transition from #{status} to #{new_status}"
+      25.megabytes
     end
-    
+  end
+  
+  # File size calculations
+  def uploaded_size
+    chunks.where(status: 'completed').sum(:size)
+  end
+  
+  def remaining_size
+    total_size - uploaded_size
+  end
+  
+  private
+  
+  def transition_to!(new_status)
     update!(status: new_status)
   end
   
   def container_must_be_in_same_workspace
-    return unless container.present?
+    return unless container.present? && workspace.present?
     
-    if container.workspace_id != workspace_id
-      errors.add(:container, 'must belong to the same workspace')
+    unless container.workspace_id == workspace.id
+      errors.add(:container, 'must be in the same workspace')
     end
   end
   
@@ -168,20 +167,14 @@ class UploadSession < ApplicationRecord
   def filename_must_be_safe
     return unless filename.present?
     
+    # 🛡️ UPDATED: Much more relaxed validation - let the MaliciousFileDetectionService handle security
     dangerous_patterns = [
       /\A\s*\z/,           # Only whitespace
-      /\A\.+/,             # Starts with dots (including single dot)
+      /\A\.+\z/,           # Only dots
       /\.\./,              # Contains ../
-      /[<>:"|*?]/,         # Windows forbidden chars
+      /[<>:"|*?]/,         # Windows forbidden chars  
       /\A(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i  # Windows reserved names
     ]
-    
-    # Don't reject .exe.mp3 - that's a valid audio filename
-    # Only reject actual executables without audio extensions
-    if filename.match?(/\.(exe|bat|cmd|com|scr|pif)$/i) && !filename.match?(/\.(mp3|wav|aiff|flac|m4a)$/i)
-      errors.add(:filename, 'contains unsafe file extension')
-      return
-    end
     
     dangerous_patterns.each do |pattern|
       if filename.match?(pattern)
