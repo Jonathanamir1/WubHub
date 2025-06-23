@@ -171,6 +171,7 @@ RSpec.describe UploadAssembler, type: :service do
       end
     end
 
+
     context 'when upload session is in workspace root' do
       let(:root_session) do
         create(:upload_session,
@@ -186,13 +187,16 @@ RSpec.describe UploadAssembler, type: :service do
 
       before do
         @temp_file = Tempfile.new(['root_chunk', '.tmp'])
-        @temp_file.write('root chunk data' + 'x' * 980)  # 995 bytes
+        # FIX: Create exactly 1000 bytes to match total_size: 1000
+        # 'root chunk data' = 15 bytes, so we need 985 more bytes to reach 1000
+        chunk_data = 'root chunk data' + 'x' * 985  # 15 + 985 = 1000 bytes
+        @temp_file.write(chunk_data)
         @temp_file.rewind
         
         create(:chunk,
           upload_session: root_session,
           chunk_number: 1,
-          size: 995,
+          size: 1000,  # FIX: Update size to match actual data and total_size
           status: 'completed',
           storage_key: @temp_file.path
         )

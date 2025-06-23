@@ -2,7 +2,8 @@ class UploadSessionSerializer < ActiveModel::Serializer
   attributes :id, :filename, :total_size, :chunks_count, :status, :metadata,
              :workspace_id, :container_id, :user_id, :created_at, :updated_at,
              :upload_location, :target_path, :progress_percentage, :all_chunks_uploaded,
-             :missing_chunks, :uploaded_size, :recommended_chunk_size
+             :missing_chunks, :uploaded_size, :recommended_chunk_size,
+             :assembled_file_path, :virus_scan_queued_at, :virus_scan_completed_at
 
   # FIX: Add the missing question mark to call the correct model method
   def all_chunks_uploaded
@@ -117,14 +118,18 @@ class UploadSessionSerializer < ActiveModel::Serializer
     return '0 B' if bytes.nil? || bytes.zero?
 
     units = ['B', 'KB', 'MB', 'GB', 'TB']
+    index = 0
     size = bytes.to_f
-    unit_index = 0
 
-    while size >= 1024 && unit_index < units.length - 1
-      size /= 1024
-      unit_index += 1
+    while size >= 1024 && index < units.length - 1
+      size /= 1024.0
+      index += 1
     end
 
-    "#{size.round(1)} #{units[unit_index]}"
+    if index.zero?
+      "#{size.to_i} #{units[index]}"
+    else
+      "#{format('%.2f', size)} #{units[index]}"
+    end
   end
 end
