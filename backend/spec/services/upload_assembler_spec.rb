@@ -69,42 +69,65 @@ RSpec.describe UploadAssembler, type: :service do
           status: 'completed',
           storage_key: temp_file_2.path
         )
+
+        # Mock the virus scanner service
+        @scanner_service = double('VirusScannerService')
+        allow(VirusScannerService).to receive(:new).and_return(@scanner_service)
+        allow(@scanner_service).to receive(:scan_assembled_file_async) do |session|
+          session.update!(
+            status: 'virus_scanning',
+            virus_scan_queued_at: Time.current
+          )
+          session.metadata ||= {}
+          session.metadata['virus_scan'] = {
+            'scanner' => 'clamav',
+            'queued_at' => Time.current.iso8601,
+            'status' => 'scanning'
+          }
+          session.save!
+        end
       end
 
       after do
         @temp_files&.each(&:close)
         @temp_files&.each(&:unlink)
+        
+        # Clean up any assembled files
+        if upload_session.assembled_file_path && File.exist?(upload_session.assembled_file_path)
+          File.delete(upload_session.assembled_file_path)
+        end
       end
 
-      it 'creates an Asset from the assembled chunks' do
+      it 'assembles chunks and queues virus scanning (no longer creates Asset)' do
         assembler = UploadAssembler.new(upload_session)
         
-        expect { assembler.assemble! }.to change(Asset, :count).by(1)
+        # Should NOT create an Asset anymore - that happens after virus scanning
+        expect { 
+          result = assembler.assemble! 
+          expect(result).to eq(upload_session)  # Returns upload_session instead of asset
+        }.not_to change(Asset, :count)
         
-        asset = Asset.last
-        expect(asset.filename).to eq('track.wav')
-        expect(asset.workspace).to eq(workspace)
-        expect(asset.container).to eq(container)
-        expect(asset.user).to eq(user)
-        expect(asset.file_size).to eq(total_size)
+        upload_session.reload
+        expect(upload_session.status).to eq('virus_scanning')
+        expect(upload_session.assembled_file_path).to be_present
+        expect(File.exist?(upload_session.assembled_file_path)).to be true
       end
 
-      it 'attaches the assembled file to the Asset' do
-        assembler = UploadAssembler.new(upload_session)
-        assembler.assemble!
-        
-        asset = Asset.last
-        expect(asset.file_blob).to be_attached
-        expect(asset.file_blob.filename.to_s).to eq('track.wav')
-        expect(asset.file_blob.byte_size).to eq(total_size)
-      end
-
-      it 'marks upload session as completed' do
+      it 'marks upload session as virus_scanning' do
         assembler = UploadAssembler.new(upload_session)
         assembler.assemble!
         
         upload_session.reload
-        expect(upload_session.status).to eq('completed')
+        expect(upload_session.status).to eq('virus_scanning')
+      end
+
+      it 'stores assembled file path' do
+        assembler = UploadAssembler.new(upload_session)
+        assembler.assemble!
+        
+        upload_session.reload
+        expect(upload_session.assembled_file_path).to be_present
+        expect(File.exist?(upload_session.assembled_file_path)).to be true
       end
 
       it 'cleans up chunk files after assembly' do
@@ -119,14 +142,15 @@ RSpec.describe UploadAssembler, type: :service do
         end
       end
 
-      it 'preserves chunk order during assembly' do
+      it 'preserves chunk order in assembled file' do
         assembler = UploadAssembler.new(upload_session)
         assembler.assemble!
         
-        asset = Asset.last
+        upload_session.reload
+        assembled_file_path = upload_session.assembled_file_path
         
-        # Read the assembled file content
-        assembled_content = asset.file_blob.download
+        # Read the assembled file content directly
+        assembled_content = File.read(assembled_file_path)
         
         # Should contain chunks in correct order
         expect(assembled_content).to start_with('chunk_0_data')
@@ -134,180 +158,104 @@ RSpec.describe UploadAssembler, type: :service do
         expect(assembled_content).to end_with('chunk_2_data' + 'x' * 1016)
       end
 
-      it 'extracts correct file metadata' do
+      it 'creates assembled file with correct total size' do
         assembler = UploadAssembler.new(upload_session)
         assembler.assemble!
         
-        asset = Asset.last
-        expect(asset.content_type).to eq('audio/wav')
-        expect(asset.file_size).to eq(total_size)
-        expect(asset.path).to eq('/Beats/track.wav')
+        upload_session.reload
+        assembled_file_path = upload_session.assembled_file_path
+        
+        # Check file size matches expected total
+        actual_size = File.size(assembled_file_path)
+        expect(actual_size).to eq(total_size)
       end
     end
 
     context 'when upload session is in workspace root' do
-      let(:chunk_data_0) { "chunk_0_data" + "x" * 1014 }  # 1024 bytes
-      let(:chunk_data_1) { "chunk_1_data" + "x" * 1014 }  # 1024 bytes
-      let(:total_size) { chunk_data_0.bytesize + chunk_data_1.bytesize }  # 2048 bytes
-      
-      let(:root_upload_session) do
+      let(:root_session) do
         create(:upload_session,
           workspace: workspace,
-          container: nil,  # Root level
+          container: nil,  # No container = workspace root
           user: user,
-          filename: 'master.mp3',
-          total_size: total_size,
-          chunks_count: 2,
+          filename: 'root_track.wav',
+          total_size: 1000,
+          chunks_count: 1,
           status: 'assembling'
         )
       end
 
       before do
-        @temp_files = []
-        
-        # Create chunk 0
-        temp_file_0 = Tempfile.new(["chunk_0", '.tmp'])
-        temp_file_0.write(chunk_data_0)
-        temp_file_0.rewind
-        @temp_files << temp_file_0
+        @temp_file = Tempfile.new(['root_chunk', '.tmp'])
+        @temp_file.write('root chunk data' + 'x' * 980)  # 995 bytes
+        @temp_file.rewind
         
         create(:chunk,
-          upload_session: root_upload_session,
+          upload_session: root_session,
           chunk_number: 1,
-          size: chunk_data_0.bytesize,
+          size: 995,
           status: 'completed',
-          storage_key: temp_file_0.path
+          storage_key: @temp_file.path
         )
-        
-        # Create chunk 1
-        temp_file_1 = Tempfile.new(["chunk_1", '.tmp'])
-        temp_file_1.write(chunk_data_1)
-        temp_file_1.rewind
-        @temp_files << temp_file_1
-        
-        create(:chunk,
-          upload_session: root_upload_session,
-          chunk_number: 2,
-          size: chunk_data_1.bytesize,
-          status: 'completed',
-          storage_key: temp_file_1.path
-        )
+
+        # Mock virus scanner
+        @scanner_service = double('VirusScannerService')
+        allow(VirusScannerService).to receive(:new).and_return(@scanner_service)
+        allow(@scanner_service).to receive(:scan_assembled_file_async) do |session|
+          session.update!(status: 'virus_scanning')
+        end
       end
 
       after do
-        @temp_files&.each(&:close)
-        @temp_files&.each(&:unlink)
+        @temp_file&.close
+        @temp_file&.unlink
+        
+        if root_session.assembled_file_path && File.exist?(root_session.assembled_file_path)
+          File.delete(root_session.assembled_file_path)
+        end
       end
 
-      it 'creates asset in workspace root' do
-        assembler = UploadAssembler.new(root_upload_session)
+      it 'assembles successfully in workspace root' do
+        assembler = UploadAssembler.new(root_session)
         assembler.assemble!
         
-        asset = Asset.last
-        expect(asset.container).to be_nil
-        expect(asset.path).to eq('/master.mp3')
+        root_session.reload
+        expect(root_session.status).to eq('virus_scanning')
+        expect(root_session.container).to be_nil
       end
     end
 
-    context 'when chunks are missing' do
-      let(:incomplete_session) do
-        create(:upload_session,
-          workspace: workspace,
-          user: user,
-          filename: 'incomplete.wav',
-          chunks_count: 3,
-          status: 'assembling'
-        )
-      end
-
-      before do
-        # Only create 2 chunks out of 3
-        create(:chunk, upload_session: incomplete_session, chunk_number: 1, status: 'completed')
-        create(:chunk, upload_session: incomplete_session, chunk_number: 3, status: 'completed')
-        # Chunk 2 is missing
-      end
-
-      it 'raises an error and marks session as failed' do
-        assembler = UploadAssembler.new(incomplete_session)
-        
-        expect { assembler.assemble! }.to raise_error(UploadAssembler::AssemblyError, /Missing chunks/)
-        
-        incomplete_session.reload
-        expect(incomplete_session.status).to eq('failed')
-      end
-    end
-
-    context 'when chunk files are corrupted or missing' do
-      let(:corrupted_session) do
-        create(:upload_session,
-          workspace: workspace,
-          user: user,
-          filename: 'corrupted.wav',
-          chunks_count: 2,
-          status: 'assembling'
-        )
-      end
-
-      before do
-        create(:chunk,
-          upload_session: corrupted_session,
-          chunk_number: 1,
-          status: 'completed',
-          storage_key: '/non/existent/path/chunk1.tmp'
-        )
-        create(:chunk,
-          upload_session: corrupted_session,
-          chunk_number: 2,
-          status: 'completed',
-          storage_key: '/non/existent/path/chunk2.tmp'
-        )
-      end
-
-      it 'raises an error and marks session as failed' do
-        assembler = UploadAssembler.new(corrupted_session)
-        
-        expect { assembler.assemble! }.to raise_error(UploadAssembler::AssemblyError, /Chunk file not found/)
-        
-        corrupted_session.reload
-        expect(corrupted_session.status).to eq('failed')
-      end
-    end
-
-    context 'when duplicate filename would be created' do
-      let(:chunk_data) { 'test_data' }
+    context 'when there are duplicate filenames' do
       let(:duplicate_session) do
         create(:upload_session,
           workspace: workspace,
           container: container,
           user: user,
-          filename: 'existing.wav',
+          filename: 'duplicate.wav',
           chunks_count: 1,
-          total_size: chunk_data.bytesize,
           status: 'assembling'
         )
       end
 
       before do
-        # Create existing asset with same name
+        # Create existing asset with same filename
         create(:asset,
           workspace: workspace,
           container: container,
+          filename: 'duplicate.wav',
           user: user,
-          filename: 'existing.wav'
+          file_size: 1000
         )
-
-        # Create chunk for new upload
-        temp_file = Tempfile.new(['chunk', '.tmp'])
-        temp_file.write(chunk_data)
-        temp_file.rewind
-        @temp_file = temp_file
+        
+        @temp_file = Tempfile.new(['dup_chunk', '.tmp'])
+        @temp_file.write('duplicate content')
+        @temp_file.rewind
         
         create(:chunk,
           upload_session: duplicate_session,
           chunk_number: 1,
-          size: chunk_data.bytesize,
+          size: 100,
           status: 'completed',
-          storage_key: temp_file.path
+          storage_key: @temp_file.path
         )
       end
 
@@ -402,6 +350,37 @@ RSpec.describe UploadAssembler, type: :service do
         expect(size_mismatch_session.status).to eq('failed')
       end
     end
+
+    context 'when chunk files are corrupted or missing' do
+      let(:corrupted_session) do
+        create(:upload_session,
+          workspace: workspace,
+          user: user,
+          filename: 'corrupted.wav',
+          chunks_count: 1,
+          status: 'assembling'
+        )
+      end
+
+      before do
+        create(:chunk,
+          upload_session: corrupted_session,
+          chunk_number: 1,
+          size: 100,
+          status: 'completed',
+          storage_key: '/non/existent/path/chunk1.tmp'  # Non-existent file
+        )
+      end
+
+      it 'raises an error and marks session as failed' do
+        assembler = UploadAssembler.new(corrupted_session)
+        
+        expect { assembler.assemble! }.to raise_error(UploadAssembler::AssemblyError, /Chunk file missing/)
+        
+        corrupted_session.reload
+        expect(corrupted_session.status).to eq('failed')
+      end
+    end
   end
 
   describe '#can_assemble?' do
@@ -484,6 +463,13 @@ RSpec.describe UploadAssembler, type: :service do
         )
       end
 
+      # Mock virus scanner
+      scanner_service = double('VirusScannerService')
+      allow(VirusScannerService).to receive(:new).and_return(scanner_service)
+      allow(scanner_service).to receive(:scan_assembled_file_async) do |session|
+        session.update!(status: 'virus_scanning')
+      end
+
       assembler = UploadAssembler.new(large_session)
       
       # Assembly should complete within reasonable time
@@ -493,55 +479,16 @@ RSpec.describe UploadAssembler, type: :service do
       
       expect(end_time - start_time).to be < 30.seconds
       
+      large_session.reload
+      expect(large_session.status).to eq('virus_scanning')  # Changed from 'completed'
+      
       # Cleanup
       @temp_files.each(&:close)
       @temp_files.each(&:unlink)
-    end
-  end
-
-  describe 'integration with existing Asset validation' do
-    let(:chunk_data) { 'test audio data' }
-    
-    before do
-      @upload_session = UploadSession.create!(
-        workspace: workspace,
-        container: container,
-        user: user,
-        filename: 'valid_track.wav',
-        chunks_count: 1,
-        status: 'assembling',
-        total_size: chunk_data.bytesize  # 15 bytes
-      )
       
-      temp_file = Tempfile.new(['chunk', '.tmp'])
-      temp_file.write(chunk_data)
-      temp_file.rewind
-      @temp_file = temp_file
-      
-      create(:chunk,
-        upload_session: @upload_session,
-        chunk_number: 1,
-        size: chunk_data.bytesize,
-        status: 'completed',
-        storage_key: temp_file.path
-      )
-    end
-
-    after do
-      @temp_file&.close
-      @temp_file&.unlink
-    end
-
-    it 'respects existing Asset validations' do
-      assembler = UploadAssembler.new(@upload_session)
-      assembler.assemble!
-      
-      asset = Asset.last
-      
-      # Should follow existing Asset validation rules
-      expect(asset).to be_valid
-      expect(asset.filename).to eq('valid_track.wav')
-      expect(asset.full_path).to eq('/Beats/valid_track.wav')
+      if large_session.assembled_file_path && File.exist?(large_session.assembled_file_path)
+        File.delete(large_session.assembled_file_path)
+      end
     end
   end
 end

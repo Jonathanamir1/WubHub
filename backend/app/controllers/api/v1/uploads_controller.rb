@@ -155,7 +155,40 @@ class Api::V1::UploadsController < ApplicationController
     when 'start_assembly'
       @upload_session.start_assembly!
     when 'complete'
-      @upload_session.complete!
+      # NEW: Handle the virus scanning flow
+      if @upload_session.status == 'assembling'
+        # Start assembly process which will trigger virus scanning
+        begin
+          assembler = UploadAssembler.new(@upload_session)
+          
+          # Check if assembly is ready
+          unless assembler.can_assemble?
+            status = assembler.assembly_status
+            return render json: { 
+              error: "Upload session not ready for assembly. Missing chunks: #{status[:missing_chunks].join(', ')}" 
+            }, status: :unprocessable_entity
+          end
+          
+          # Perform assembly which will trigger virus scanning
+          assembler.assemble!
+          
+          # The upload session should now be in 'virus_scanning' status
+          @upload_session.reload
+          
+        rescue UploadAssembler::AssemblyError => e
+          return render json: { 
+            error: "Assembly failed: #{e.message}" 
+          }, status: :unprocessable_entity
+        end
+      elsif @upload_session.status == 'finalizing'
+        # Direct completion from finalizing state (after virus scan passed)
+        @upload_session.complete!
+      else
+        # Invalid state for completion
+        return render json: { 
+          error: "Invalid transition: Cannot complete upload from #{@upload_session.status} status" 
+        }, status: :unprocessable_entity
+      end
     when 'fail'
       @upload_session.fail!
     when 'cancel'

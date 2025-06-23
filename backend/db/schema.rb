@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_16_103143) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_20_103236) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -130,12 +130,18 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_16_103143) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "assembled_file_path"
+    t.datetime "virus_scan_queued_at"
+    t.datetime "virus_scan_completed_at"
+    t.index ["assembled_file_path"], name: "index_upload_sessions_on_assembled_file_path"
     t.index ["container_id"], name: "index_upload_sessions_on_container_id"
     t.index ["created_at"], name: "index_upload_sessions_on_created_at"
     t.index ["status", "created_at"], name: "index_upload_sessions_on_status_and_created_at"
     t.index ["status"], name: "index_upload_sessions_on_status"
     t.index ["user_id", "status"], name: "index_upload_sessions_on_user_id_and_status"
     t.index ["user_id"], name: "index_upload_sessions_on_user_id"
+    t.index ["virus_scan_completed_at"], name: "index_upload_sessions_on_virus_scan_completed_at"
+    t.index ["virus_scan_queued_at"], name: "index_upload_sessions_on_virus_scan_queued_at"
     t.index ["workspace_id", "container_id", "filename"], name: "index_upload_sessions_unique_filename_per_location", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'uploading'::character varying, 'assembling'::character varying])::text[]))"
     t.index ["workspace_id", "status"], name: "index_upload_sessions_on_workspace_id_and_status"
     t.index ["workspace_id"], name: "index_upload_sessions_on_workspace_id"

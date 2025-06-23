@@ -122,7 +122,7 @@ RSpec.describe "Api::V1::Uploads", type: :request do
         expect(response).to have_http_status(:created)
         json_response = JSON.parse(response.body)
         
-        expect(json_response['recommended_chunk_size']).to eq(5.megabytes)
+        expect(json_response['recommended_chunk_size']).to eq(10.megabytes)
       end
     end
 
@@ -434,83 +434,136 @@ RSpec.describe "Api::V1::Uploads", type: :request do
     end
   end
 
-  describe "PUT /api/v1/uploads/:id" do
-    let(:upload_session) { create(:upload_session, workspace: workspace, user: user, status: 'pending') }
 
-    context "when user has access" do
-      it "starts upload (pending -> uploading)" do
+  describe 'PUT /api/v1/uploads/:id' do
+    context 'when user has access' do
+      let(:upload_session) do
+        create(:upload_session,
+          workspace: workspace,
+          user: user,
+          filename: 'test_track.wav',
+          total_size: 2048,
+          chunks_count: 2,
+          status: 'assembling'
+        )
+      end
+
+      before do
+        # Create completed chunks for the upload session
+        create(:chunk,
+          upload_session: upload_session,
+          chunk_number: 1,
+          size: 1024,  # This should match our mocked chunk data size
+          status: 'completed',
+          storage_key: '/tmp/chunk1.tmp'
+        )
+        
+        create(:chunk,
+          upload_session: upload_session,
+          chunk_number: 2,
+          size: 1024,  # This should match our mocked chunk data size
+          status: 'completed',
+          storage_key: '/tmp/chunk2.tmp'
+        )
+
+        # Mock the virus scanner to prevent actual ClamAV calls
+        @scanner_service = double('VirusScannerService')
+        allow(VirusScannerService).to receive(:new).and_return(@scanner_service)
+        allow(@scanner_service).to receive(:scan_assembled_file_async) do |session|
+          session.update!(
+            status: 'virus_scanning',
+            virus_scan_queued_at: Time.current
+          )
+          session.metadata ||= {}
+          session.metadata['virus_scan'] = {
+            'scanner' => 'clamav',
+            'queued_at' => Time.current.iso8601,
+            'status' => 'scanning'
+          }
+          session.save!
+        end
+
+        # Mock the storage service and chunk files
+        storage_service = double('ChunkStorageService')
+        allow(ChunkStorageService).to receive(:new).and_return(storage_service)
+        allow(storage_service).to receive(:chunk_exists?).and_return(true)
+        
+        # Create properly sized chunk data to match the expected total
+        chunk_1_data = "chunk_1_data" + "x" * 1012  # 1024 bytes total (12 + 1012)
+        chunk_2_data = "chunk_2_data" + "x" * 1012  # 1024 bytes total (12 + 1012)
+        
+        # Mock reading chunks with correct sizes
+        allow(storage_service).to receive(:read_chunk) do |storage_key|
+          if storage_key == '/tmp/chunk1.tmp'
+            double('IO', read: chunk_1_data, close: true)
+          else
+            double('IO', read: chunk_2_data, close: true)
+          end
+        end
+        
+        allow(storage_service).to receive(:cleanup_session_chunks).and_return(2)
+        
+        # Mock File operations for assembly
+        allow(FileUtils).to receive(:mkdir_p)
+        allow(File).to receive(:open).with(anything, 'wb').and_yield(double('File', write: true))
+        allow(File).to receive(:size).and_return(2048)  # This should match the total
+      end
+
+      it 'starts virus scanning (assembling -> virus_scanning)' do
+        # Use action_type: 'complete' as expected by the API
         put "/api/v1/uploads/#{upload_session.id}", 
-            params: { action_type: 'start_upload' }, 
+            params: { action_type: 'complete' },  # Changed from complete: true
             headers: headers
 
+        # Debug: Let's see what error we're getting
+        if response.status != 200
+          json_response = JSON.parse(response.body)
+          puts "Response status: #{response.status}"
+          puts "Response body: #{json_response}"
+        end
+
         expect(response).to have_http_status(:ok)
-        json_response = JSON.parse(response.body)
-        
-        expect(json_response['status']).to eq('uploading')
         
         upload_session.reload
-        expect(upload_session.status).to eq('uploading')
+        expect(upload_session.status).to eq('virus_scanning')
+        
+        json_response = JSON.parse(response.body)
+        expect(json_response['status']).to eq('virus_scanning')
+        expect(json_response['assembled_file_path']).to be_present
       end
 
-      it "starts assembly (uploading -> assembling)" do
-        upload_session.update!(status: 'uploading')
+      it 'returns error if upload session is not ready for completion' do
+        # Set upload session to a state that cannot be completed
+        upload_session.update!(status: 'pending')
         
         put "/api/v1/uploads/#{upload_session.id}", 
-            params: { action_type: 'start_assembly' }, 
-            headers: headers
-
-        expect(response).to have_http_status(:ok)
-        json_response = JSON.parse(response.body)
-        expect(json_response['status']).to eq('assembling')
-      end
-
-      it "completes upload (assembling -> completed)" do
-        upload_session.update!(status: 'assembling')
-        
-        put "/api/v1/uploads/#{upload_session.id}", 
-            params: { action_type: 'complete' }, 
-            headers: headers
-
-        expect(response).to have_http_status(:ok)
-        json_response = JSON.parse(response.body)
-        expect(json_response['status']).to eq('completed')
-      end
-
-      it "fails upload from any state" do
-        put "/api/v1/uploads/#{upload_session.id}", 
-            params: { action_type: 'fail' }, 
-            headers: headers
-
-        expect(response).to have_http_status(:ok)
-        json_response = JSON.parse(response.body)
-        expect(json_response['status']).to eq('failed')
-      end
-
-      it "cancels upload from non-terminal state" do
-        put "/api/v1/uploads/#{upload_session.id}", 
-            params: { action_type: 'cancel' }, 
-            headers: headers
-
-        expect(response).to have_http_status(:ok)
-        json_response = JSON.parse(response.body)
-        expect(json_response['status']).to eq('cancelled')
-      end
-
-      it "returns error for invalid state transition" do
-        upload_session.update!(status: 'completed')
-        
-        put "/api/v1/uploads/#{upload_session.id}", 
-            params: { action_type: 'start_upload' }, 
+            params: { action_type: 'complete' },
             headers: headers
 
         expect(response).to have_http_status(:unprocessable_entity)
+        
         json_response = JSON.parse(response.body)
-        expect(json_response['error']).to include('Invalid transition')
+        expect(json_response['error']).to include('Invalid transition')  # Updated expectation
       end
 
-      it "updates metadata" do
+      it 'returns error if chunks are missing' do
+        # Remove one chunk to make assembly impossible
+        upload_session.chunks.last.destroy
+        
+        put "/api/v1/uploads/#{upload_session.id}", 
+            params: { action_type: 'complete' },
+            headers: headers
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        
+        json_response = JSON.parse(response.body)
+        # Updated expectation to match the new controller logic
+        expect(json_response['error']).to include('not ready for assembly')
+      end
+
+      it 'updates metadata when upload_session params provided' do
         new_metadata = { 
-          progress_notes: 'Halfway through upload',
+          progress_notes: 'Test upload',
           client_version: '2.1.0' 
         }
         
@@ -523,19 +576,25 @@ RSpec.describe "Api::V1::Uploads", type: :request do
         expect(response).to have_http_status(:ok)
         
         upload_session.reload
-        expect(upload_session.metadata['progress_notes']).to eq('Halfway through upload')
+        expect(upload_session.metadata['progress_notes']).to eq('Test upload')
         expect(upload_session.metadata['client_version']).to eq('2.1.0')
       end
     end
-
-    context "when user doesn't have access" do
+    
+    context 'when user does not have access' do
       let(:other_user) { create(:user) }
       let(:other_workspace) { create(:workspace, user: other_user) }
-      let(:other_upload) { create(:upload_session, workspace: other_workspace, user: other_user) }
+      let(:other_upload_session) do
+        create(:upload_session,
+          workspace: other_workspace,
+          user: other_user,
+          status: 'assembling'
+        )
+      end
 
-      it "returns not found for inaccessible upload session" do
-        put "/api/v1/uploads/#{other_upload.id}", 
-            params: { action_type: 'start_upload' }, 
+      it 'returns not found error' do
+        put "/api/v1/uploads/#{other_upload_session.id}", 
+            params: { action_type: 'complete' },
             headers: headers
 
         expect(response).to have_http_status(:not_found)

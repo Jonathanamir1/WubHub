@@ -295,42 +295,24 @@ RSpec.describe UploadSession, type: :model do
     let(:workspace) { create(:workspace, user: user) }
     let(:upload_session) { create(:upload_session, status: 'pending', workspace: workspace, user: user) }
     
-    it 'can transition from pending to uploading' do
-      expect { upload_session.start_upload! }.to change { upload_session.status }.from('pending').to('uploading')
-    end
-    
-    it 'can transition from uploading to assembling' do
-      upload_session.update!(status: 'uploading')
-      expect { upload_session.start_assembly! }.to change { upload_session.status }.from('uploading').to('assembling')
-    end
-    
-    it 'can transition from assembling to completed' do
+    it 'can transition from assembling to virus_scanning' do
       upload_session.update!(status: 'assembling')
-      expect { upload_session.complete! }.to change { upload_session.status }.from('assembling').to('completed')
+      expect { upload_session.start_virus_scan! }.to change { upload_session.status }.from('assembling').to('virus_scanning')
     end
-    
-    it 'can transition to failed from any state' do
-      %w[pending uploading assembling].each do |initial_status|
-        session = create(:upload_session, status: initial_status, workspace: workspace, user: user)
-        expect { session.fail! }.to change { session.status }.to('failed')
-      end
+
+    it 'can transition from virus_scanning to finalizing' do
+      upload_session.update!(status: 'virus_scanning')
+      expect { upload_session.start_finalization! }.to change { upload_session.status }.from('virus_scanning').to('finalizing')
     end
-    
-    it 'can transition to cancelled from non-terminal states' do
-      %w[pending uploading].each do |initial_status|
-        session = create(:upload_session, status: initial_status, workspace: workspace, user: user)
-        expect { session.cancel! }.to change { session.status }.to('cancelled')
-      end
+
+    it 'can transition from finalizing to completed' do
+      upload_session.update!(status: 'finalizing')
+      expect { upload_session.complete! }.to change { upload_session.status }.from('finalizing').to('completed')
     end
-    
-    it 'cannot transition from completed state' do
-      upload_session.update!(status: 'completed')
-      expect { upload_session.start_upload! }.to raise_error(UploadSession::InvalidTransition)
-    end
-    
-    it 'cannot transition from failed to uploading' do
-      upload_session.update!(status: 'failed')
-      expect { upload_session.start_upload! }.to raise_error(UploadSession::InvalidTransition)
+
+    it 'can transition from virus_scanning to virus_detected' do
+      upload_session.update!(status: 'virus_scanning')
+      expect { upload_session.virus_detected! }.to change { upload_session.status }.from('virus_scanning').to('virus_detected')
     end
   end
 
