@@ -94,22 +94,14 @@ RSpec.describe UploadAssemblyJob, type: :job do
       it 'assembles chunks and queues virus scanning (no longer creates Asset)' do
         expect(@scanner_service).to receive(:scan_assembled_file_async).with(upload_session)
         
-        # Debug: Check what happens during assembly
-        puts "Before assembly: #{upload_session.status}"
-        
+        # Debug: Check what happens during assembly        
         # Capture any errors that might be happening
         begin
           UploadAssemblyJob.perform_now(upload_session.id)
         rescue => e
-          puts "ERROR during assembly: #{e.class}: #{e.message}"
-          puts e.backtrace.first(5).join("\n")
         end
         
-        upload_session.reload
-        puts "After assembly: #{upload_session.status}"
-        puts "Assembled file path: #{upload_session.assembled_file_path}"
-        puts "Upload session errors: #{upload_session.errors.full_messages}" if upload_session.errors.any?
-        
+        upload_session.reload        
         # Should NOT create an Asset anymore - that happens after virus scanning
         expect { 
           # Don't run the job again, just check the count didn't change

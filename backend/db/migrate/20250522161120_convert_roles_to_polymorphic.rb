@@ -3,7 +3,5 @@ class ConvertRolesToPolymorphic < ActiveRecord::Migration[7.1]
     add_column :roles, :roleable_id, :integer
     add_column :roles, :roleable_type, :string
 
-    remove_column :roles, :project_id
-
   end
 end

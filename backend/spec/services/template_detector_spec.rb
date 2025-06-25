@@ -4,7 +4,7 @@ RSpec.describe TemplateDetector, type: :service do
   describe '.detect_template' do
     
     it 'defaults to "other" when no template specified' do
-      workspace = create(:workspace, template_type: nil)
+      workspace = create(:workspace, workspace_type: nil)
       
       template = TemplateDetector.detect_template(workspace)
       
@@ -12,7 +12,9 @@ RSpec.describe TemplateDetector, type: :service do
     end
 
     it 'returns "other" for invalid template types' do
-      workspace = create(:workspace, template_type: 'invalid_type')
+      workspace = build(:workspace, workspace_type: 'invalid_type')
+      # Skip validation for this test since we want to test the service logic
+      workspace.save(validate: false)
       
       template = TemplateDetector.detect_template(workspace)
       
@@ -20,7 +22,7 @@ RSpec.describe TemplateDetector, type: :service do
     end
 
     it 'returns valid template types' do
-      workspace = create(:workspace, template_type: 'producer')
+      workspace = create(:workspace, workspace_type: 'producer')
       
       template = TemplateDetector.detect_template(workspace)
       
@@ -28,7 +30,7 @@ RSpec.describe TemplateDetector, type: :service do
     end
 
     it 'handles empty template type gracefully' do
-      workspace = create(:workspace, template_type: '')
+      workspace = create(:workspace, workspace_type: '')
       
       template = TemplateDetector.detect_template(workspace)
       

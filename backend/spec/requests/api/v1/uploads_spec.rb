@@ -518,8 +518,6 @@ RSpec.describe "Api::V1::Uploads", type: :request do
         # Debug: Let's see what error we're getting
         if response.status != 200
           json_response = JSON.parse(response.body)
-          puts "Response status: #{response.status}"
-          puts "Response body: #{json_response}"
         end
 
         expect(response).to have_http_status(:ok)
@@ -769,7 +767,7 @@ RSpec.describe "Api::V1::Uploads", type: :request do
 
   describe "workspace template integration" do
     it "works with producer workspace template" do
-      producer_workspace = create(:workspace, user: user, template_type: 'producer')
+      producer_workspace = create(:workspace, user: user, workspace_type: 'producer')
       
       upload_params = {
         upload_session: {
@@ -786,7 +784,7 @@ RSpec.describe "Api::V1::Uploads", type: :request do
     end
 
     it "works with songwriter workspace template" do
-      songwriter_workspace = create(:workspace, user: user, template_type: 'songwriter')
+      songwriter_workspace = create(:workspace, user: user, workspace_type: 'songwriter')
       
       upload_params = {
         upload_session: {
