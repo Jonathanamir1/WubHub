@@ -46,11 +46,10 @@ class MaliciousFileDetectionService
     sanitized_filename = filename.strip.downcase
     extension = extract_extension(sanitized_filename)
     
-    # Step 2: Check for multiple extensions BEFORE blocking (to get proper error message)
+    # Step 2: Check for multiple extensions FIRST
     has_multiple_ext = has_multiple_extensions?(sanitized_filename)
     if has_multiple_ext
       result.add_threat('Multiple file extensions detected')
-      high_risk_detected = true
     end
     
     # Step 3: Check for immediate blocking conditions - critical risk
@@ -61,8 +60,7 @@ class MaliciousFileDetectionService
     end
     
     # Step 4: Check for other high-risk conditions
-    # Step 4: Check for other high-risk conditions
-    high_risk_detected = has_multiple_ext  # Already checked above
+    high_risk_detected = has_multiple_ext
     
     if filename.length > 255
       result.add_threat('Filename exceeds safe length limits')
@@ -112,76 +110,59 @@ class MaliciousFileDetectionService
     result = scan_file(filename, content_type)
     return result unless result.safe? || result.requires_verification?
     
-    # Content analysis - handle binary content safely from the start
+    # Content analysis
     return result if content.nil? || content.empty?
     
     begin
-      # Handle encoding issues immediately
-      safe_content = content.dup
+      # Handle binary content safely
+      safe_content = content.to_s.force_encoding(Encoding::BINARY)
       
-      # Force to binary encoding first to avoid UTF-8 issues
-      if safe_content.respond_to?(:force_encoding)
-        safe_content = safe_content.force_encoding(Encoding::BINARY)
-      else
-        safe_content = safe_content.to_s.force_encoding(Encoding::BINARY)
-      end
-      
-      # Now convert \xNN sequences to actual bytes
-      if safe_content.include?('\\x'.force_encoding(Encoding::BINARY))
-        safe_content = safe_content.gsub(/\\x([0-9a-fA-F]{2})/) do |match|
-          $1.hex.chr(Encoding::BINARY)
-        end
-      end
-      
+      # Check for suspicious content patterns
       if analyze_content_patterns(safe_content, filename, content_type)
         result.add_threat('Suspicious binary content in text file')
         result.set_risk_level(:high)
       end
       
-    rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError => e
-      Rails.logger.warn "🔍 Content encoding error: #{e.message}"
-      result.add_warning('Unable to scan file content due to encoding issues')
-    rescue ArgumentError => e
-      Rails.logger.warn "🔍 Content argument error: #{e.message}"
-      result.add_warning('Unable to scan file content for security patterns')
+      result
     rescue => e
-      Rails.logger.warn "🔍 Content scanning error: #{e.message}"
-      result.add_warning('Unable to scan file content for security patterns')
+      Rails.logger.error "Content analysis failed: #{e.message}"
+      result
     end
-    
-    result
   end
   
   private
   
   def extract_extension(filename)
+    return '' if filename.blank?
+    
+    # Handle multiple extensions by taking the last one
     parts = filename.split('.')
     return '' if parts.length < 2
-    parts.last
+    
+    parts.last.downcase
   end
   
   def contains_path_traversal?(filename)
-    filename.include?('..') || 
-    filename.include?('\\') ||
-    filename.start_with?('/') ||
-    filename.include?('%2e%2e') || # URL encoded ..
-    filename.include?('%2f') ||    # URL encoded /
-    filename.include?('%5c')       # URL encoded \
+    return false if filename.blank?
+    
+    # Check for path traversal patterns
+    filename.include?('../') || filename.include?('..\\') || filename.include?('../')
   end
   
   def has_multiple_extensions?(filename)
-    dots = filename.count('.')
-    return false if dots <= 1
+    return false if filename.blank?
     
+    # Count dots that are followed by alphanumeric characters
     parts = filename.split('.')
-    return false if parts.length < 3
+    return false if parts.length < 3  # Need at least 3 parts for multiple extensions
     
-    # Get the last two parts
-    second_to_last = parts[-2]
+    # Check if the last two parts look like extensions
+    second_last = parts[-2]
     last = parts[-1]
     
-    # If both look like extensions (2-4 chars, alphanumeric), it's suspicious
-    second_to_last.match?(/\A[a-z0-9]{2,4}\z/) && last.match?(/\A[a-z0-9]{2,4}\z/)
+    # Both should be 2-4 characters and alphanumeric
+    second_last.length.between?(2, 4) && second_last.match?(/\A[a-z0-9]{2,4}\z/) &&
+    last.length.between?(2, 4) && last.match?(/\A[a-z0-9]{2,4}\z/)
   end
   
   def contains_suspicious_keywords?(filename)
@@ -189,6 +170,8 @@ class MaliciousFileDetectionService
   end
   
   def has_mime_type_mismatch?(extension, content_type)
+    return false if content_type.blank?
+    
     # Audio file claiming to be executable
     if AUDIO_EXTENSIONS.include?(extension) && content_type.include?('executable')
       return true
@@ -281,6 +264,30 @@ class MaliciousFileDetectionService
         blocked: blocked?,
         requires_verification: requires_verification?
       }
+    end
+    
+    def file_type
+      # Determine file type from extension
+      extension = filename.to_s.split('.').last&.downcase || ''
+      
+      case extension
+      when *AUDIO_EXTENSIONS then 'audio'
+      when *PROJECT_EXTENSIONS then 'project'
+      when *PLUGIN_EXTENSIONS then 'plugin'
+      when *EXECUTABLE_EXTENSIONS then 'executable'
+      when *SCRIPT_EXTENSIONS then 'script'
+      when *BLOCKED_EXTENSIONS then 'blocked'
+      else 'unknown'
+      end
+    end
+    
+    def extensions
+      return [] if filename.blank?
+      
+      parts = filename.split('.')
+      return [] if parts.length < 2
+      
+      parts[1..-1].map(&:downcase)
     end
   end
 end

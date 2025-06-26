@@ -4,6 +4,8 @@ class Api::V1::ChunksController < ApplicationController
   before_action :set_upload_session
   before_action :set_chunk, only: [:show]
   before_action :authorize_upload_access!
+  before_action :verify_signed_url!, only: [:upload], if: -> { signed_url_enabled? }
+  before_action :check_rate_limits!, only: [:upload], if: -> { rate_limiting_enabled? }
   
   # POST /api/v1/uploads/:id/chunks/:chunk_number
   def upload
@@ -51,7 +53,7 @@ class Api::V1::ChunksController < ApplicationController
       end
     end
     
-    # 🛡️ NEW: Security scanning
+    # 🛡️ Security scanning
     security_result = perform_security_scan(chunk_file)
     
     # Block critical risk files
@@ -73,7 +75,7 @@ class Api::V1::ChunksController < ApplicationController
       # Create or update chunk record
       @chunk = @upload_session.chunks.find_or_initialize_by(chunk_number: chunk_number)
       
-      # 🔧 FIX: Track if this is a new chunk before assigning attributes
+      # Track if this is a new chunk before assigning attributes
       is_new_chunk = @chunk.new_record?
       
       @chunk.assign_attributes(
@@ -83,7 +85,7 @@ class Api::V1::ChunksController < ApplicationController
         storage_key: storage_key
       )
       
-      # 🛡️ Store security metadata if present
+      # Store security metadata if present
       if security_result[:has_warnings]
         @chunk.metadata ||= {}
         @chunk.metadata[:security_scan] = {
@@ -107,7 +109,7 @@ class Api::V1::ChunksController < ApplicationController
         @upload_session.start_assembly!
       end
       
-      # 🔧 FIX: Build response structure that matches security test expectations (nested format)
+      # Build response structure
       response_data = {
         chunk: {
           id: @chunk.id,
@@ -127,7 +129,7 @@ class Api::V1::ChunksController < ApplicationController
         }
       }
       
-      # 🛡️ Add security warning to response if there are warnings (not critical)
+      # Add security warning to response if there are warnings (not critical)
       if security_result[:has_warnings] && !security_result[:blocked]
         response_data[:security_warning] = {
           risk_level: security_result[:risk_level],
@@ -138,7 +140,6 @@ class Api::V1::ChunksController < ApplicationController
         }
       end
       
-      # 🔧 FIX: Always return 201 for successful chunk uploads (idempotent operation)
       render json: response_data, status: :created
       
     rescue ChunkStorageService::StorageError => e
@@ -184,7 +185,7 @@ class Api::V1::ChunksController < ApplicationController
   def index
     chunks = @upload_session.chunks.order(:chunk_number)
     
-    # 🔧 FIX: Add status filtering
+    # Add status filtering
     if params[:status].present?
       chunks = chunks.where(status: params[:status])
     end
@@ -248,6 +249,78 @@ class Api::V1::ChunksController < ApplicationController
     end
   end
   
+  def signed_url_enabled?
+    # For now, only enable if explicitly requested or in certain environments
+    params[:require_signature].present? || Rails.env.production?
+  end
+
+  def rate_limiting_enabled?
+    defined?(UploadRateLimiter) && !Rails.env.test?
+  end
+
+  # NEW: Verify signed URL for chunk uploads
+  def verify_signed_url!
+    signature = params[:signature]
+    expires = params[:expires]
+    user_id = params[:user_id]
+    
+    # Check if signature parameters are present
+    if signature.blank? || expires.blank? || user_id.blank?
+      Rails.logger.warn "⚠️ Missing signed URL parameters for chunk upload"
+      return render json: { 
+        error: 'Missing signature parameters. Signed URL required.' 
+      }, status: :unauthorized
+    end
+    
+    # Verify the signature
+    chunk_number = params[:chunk_number].to_i
+    
+    verification_result = SignedUrlService.verify_chunk_upload_signature(
+      upload_session_id: @upload_session.id,
+      chunk_number: chunk_number,
+      user_id: current_user.id,
+      signature: signature,
+      expires: expires
+    )
+    
+    unless verification_result[:valid]
+      Rails.logger.warn "🚫 Invalid signed URL attempt from user #{current_user.id}: #{verification_result[:error]}"
+      return render json: { 
+        error: verification_result[:error] 
+      }, status: :unauthorized
+    end
+    
+    Rails.logger.debug "✅ Valid signed URL verified for user #{current_user.id}, chunk #{chunk_number}"
+    true
+  end
+  
+  # NEW: Check upload rate limits
+  def check_rate_limits!
+    client_ip = request.remote_ip
+    chunk_size = params[:file]&.size || 0
+    
+    begin
+      UploadRateLimiter.check_rate_limit!(
+        user: current_user,
+        action: :upload_chunk,
+        ip_address: client_ip,
+        upload_session: @upload_session,
+        chunk_size: chunk_size
+      )
+    rescue UploadRateLimiter::RateLimitExceeded => e
+      Rails.logger.warn "🚫 Rate limit exceeded for user #{current_user.id}: #{e.message}"
+      
+      # Return 429 Too Many Requests with retry information
+      response.headers['Retry-After'] = e.retry_after_seconds.to_s if e.retry_after_seconds
+      
+      return render json: { 
+        error: e.message,
+        retry_after_seconds: e.retry_after_seconds,
+        limit_type: e.limit_type
+      }, status: 429
+    end
+  end
+  
   def calculate_checksum(chunk_file)
     # Reset file position to beginning
     chunk_file.rewind
@@ -261,7 +334,7 @@ class Api::V1::ChunksController < ApplicationController
     checksum
   end
   
-  # 🛡️ NEW: Security scanning method
+  # Security scanning method
   def perform_security_scan(chunk_file)
     Rails.logger.debug "🔍 Starting security scan for #{@upload_session.filename}"
     
