@@ -46,7 +46,6 @@ RSpec.describe "Chunks Controller with Signed URLs", type: :request do
           expect(json_response.dig('chunk', 'chunk_number')).to eq(chunk_number)
         else
           # Log the error for debugging
-          puts "Response: #{response.body}"
         end
       end
       

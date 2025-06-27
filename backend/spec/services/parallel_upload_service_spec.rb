@@ -94,7 +94,12 @@ RSpec.describe ParallelUploadService, type: :service do
     end
 
     it 'respects upload session state' do
-      upload_session.update!(status: 'completed')
+      # Follow proper state transition to get to a terminal state
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      upload_session.start_finalization!
+      upload_session.complete!
       
       expect {
         service.upload_chunks_parallel(chunk_data)

@@ -410,7 +410,15 @@ RSpec.describe UploadAssembler, type: :service do
     end
 
     it 'returns false when session is not in assembling state' do
-      upload_session.update!(status: 'uploading')
+      # Create upload session in uploading state (valid state, but not assembling)
+      upload_session = create(:upload_session, 
+        chunks_count: 3, 
+        status: 'uploading',  # Start in uploading state instead of assembling
+        workspace: workspace, 
+        user: user
+      )
+      
+      # Create all required chunks
       create(:chunk, upload_session: upload_session, chunk_number: 1, status: 'completed')
       create(:chunk, upload_session: upload_session, chunk_number: 2, status: 'completed')
       create(:chunk, upload_session: upload_session, chunk_number: 3, status: 'completed')

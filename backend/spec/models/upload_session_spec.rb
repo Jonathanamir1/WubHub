@@ -296,23 +296,118 @@ RSpec.describe UploadSession, type: :model do
     let(:upload_session) { create(:upload_session, status: 'pending', workspace: workspace, user: user) }
     
     it 'can transition from assembling to virus_scanning' do
-      upload_session.update!(status: 'assembling')
-      expect { upload_session.start_virus_scan! }.to change { upload_session.status }.from('assembling').to('virus_scanning')
+      # Follow proper sequence: pending → uploading → assembling
+      upload_session.start_upload!
+      expect(upload_session.status).to eq('uploading')
+      
+      upload_session.start_assembly!
+      expect(upload_session.status).to eq('assembling')
+      
+      # Now test the transition we want
+      upload_session.start_virus_scan!
+      expect(upload_session.status).to eq('virus_scanning')
     end
 
     it 'can transition from virus_scanning to finalizing' do
-      upload_session.update!(status: 'virus_scanning')
-      expect { upload_session.start_finalization! }.to change { upload_session.status }.from('virus_scanning').to('finalizing')
+      # Follow proper sequence: pending → uploading → assembling → virus_scanning
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      expect(upload_session.status).to eq('virus_scanning')
+      
+      # Now test the transition we want
+      upload_session.start_finalization!
+      expect(upload_session.status).to eq('finalizing')
     end
 
     it 'can transition from finalizing to completed' do
-      upload_session.update!(status: 'finalizing')
-      expect { upload_session.complete! }.to change { upload_session.status }.from('finalizing').to('completed')
+      # Follow proper sequence to finalizing
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      upload_session.start_finalization!
+      expect(upload_session.status).to eq('finalizing')
+      
+      # Now test the transition we want
+      upload_session.complete!
+      expect(upload_session.status).to eq('completed')
     end
 
     it 'can transition from virus_scanning to virus_detected' do
-      upload_session.update!(status: 'virus_scanning')
-      expect { upload_session.virus_detected! }.to change { upload_session.status }.from('virus_scanning').to('virus_detected')
+      # Follow proper sequence to virus_scanning
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      expect(upload_session.status).to eq('virus_scanning')
+      
+      # Now test the transition we want
+      upload_session.detect_virus!
+      expect(upload_session.status).to eq('virus_detected')
+    end
+  end
+
+  # Replace the failing queue notification tests
+  describe 'queue item notifications' do
+    let(:user) { create(:user) }
+    let(:workspace) { create(:workspace, user: user) }
+    let(:queue_item) { create(:queue_item, workspace: workspace, user: user, total_files: 3) }
+    let(:upload_session) { create(:upload_session, queue_item: queue_item, workspace: workspace, user: user) }
+    
+    it 'notifies queue item when upload completes' do
+      # Follow proper sequence to completion
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      upload_session.start_finalization!
+      
+      expect { upload_session.complete! }.to change { queue_item.reload.completed_files }.by(1)
+    end
+    
+    it 'notifies queue item when upload fails' do
+      expect { upload_session.fail! }.to change { queue_item.reload.failed_files }.by(1)
+    end
+    
+    it 'notifies queue item when upload is cancelled' do
+      expect { upload_session.cancel! }.to change { queue_item.reload.failed_files }.by(1)
+    end
+    
+    it 'notifies queue item when virus is detected' do
+      # Follow proper sequence to virus_scanning
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      
+      expect { upload_session.detect_virus! }.to change { queue_item.reload.failed_files }.by(1)
+    end
+    
+    it 'updates queue item status when all files complete' do
+      queue_item.update!(total_files: 1, completed_files: 0)
+      
+      # Follow proper sequence to completion
+      upload_session.start_upload!
+      upload_session.start_assembly!
+      upload_session.start_virus_scan!
+      upload_session.start_finalization!
+      
+      expect { upload_session.complete! }.to change { queue_item.reload.status }.to('completed')
+    end
+    
+    it 'updates queue item status to failed when files fail' do
+      queue_item.update!(total_files: 1, completed_files: 0, failed_files: 0)
+      
+      expect { upload_session.fail! }.to change { queue_item.reload.status }.to('failed')
+    end
+    
+    it 'does not notify queue item for standalone uploads' do
+      standalone_session = create(:upload_session, :standalone, workspace: workspace, user: user)
+      
+      # Follow proper sequence to completion
+      standalone_session.start_upload!
+      standalone_session.start_assembly!
+      standalone_session.start_virus_scan!
+      standalone_session.start_finalization!
+      
+      expect { standalone_session.complete! }.not_to change { QueueItem.count }
     end
   end
 
@@ -618,6 +713,136 @@ RSpec.describe UploadSession, type: :model do
       session = create(:upload_session, workspace: workspace, user: user)
       
       expect { workspace.destroy }.to change(UploadSession, :count).by(-1)
+    end
+  end
+
+  # NEW: Add to the associations section
+  describe 'associations' do
+    it { should belong_to(:workspace) }
+    it { should belong_to(:container).optional }
+    it { should belong_to(:user) }
+    it { should belong_to(:queue_item).optional }  # NEW
+    it { should have_many(:chunks).dependent(:destroy) }
+  end
+
+  # NEW: Add queue-related scopes tests
+  describe 'queue scopes' do
+    let(:user) { create(:user) }
+    let(:workspace) { create(:workspace, user: user) }
+    
+    before do
+      create(:upload_session, :standalone, workspace: workspace, user: user)
+      create(:upload_session, :queued, workspace: workspace, user: user)
+      create(:upload_session, :queued, workspace: workspace, user: user)
+    end
+    
+    it 'has queued scope for upload sessions with queue_item' do
+      queued_sessions = UploadSession.queued
+      expect(queued_sessions.count).to eq(2)
+      expect(queued_sessions.all? { |s| s.queue_item.present? }).to be true
+    end
+    
+    it 'has standalone scope for upload sessions without queue_item' do
+      standalone_sessions = UploadSession.standalone
+      expect(standalone_sessions.count).to eq(1)
+      expect(standalone_sessions.all? { |s| s.queue_item.nil? }).to be true
+    end
+    
+    it 'has for_queue_item scope' do
+      queue_item = create(:queue_item, workspace: workspace, user: user)
+      upload_sessions = create_list(:upload_session, 3, queue_item: queue_item, workspace: workspace, user: user)
+      
+      queue_sessions = UploadSession.for_queue_item(queue_item)
+      expect(queue_sessions.count).to eq(3)
+      expect(queue_sessions.map(&:queue_item).uniq).to eq([queue_item])
+    end
+  end
+
+  # NEW: Add queue integration methods tests  
+  describe 'queue integration methods' do
+    let(:user) { create(:user) }
+    let(:workspace) { create(:workspace, user: user) }
+    
+    context 'with queued upload session' do
+      let(:queue_item) { create(:queue_item, workspace: workspace, user: user, total_files: 5) }
+      let(:upload_session) { create(:upload_session, queue_item: queue_item, workspace: workspace, user: user) }
+      
+      describe '#part_of_queue?' do
+        it 'returns true when upload session belongs to queue' do
+          expect(upload_session.part_of_queue?).to be true
+        end
+      end
+      
+      describe '#queue_batch_id' do
+        it 'returns the batch_id from queue_item' do
+          expect(upload_session.queue_batch_id).to eq(queue_item.batch_id)
+        end
+      end
+      
+      describe '#queue_progress_context' do
+        it 'returns queue context information' do
+          context = upload_session.queue_progress_context
+          
+          expect(context[:queue_item_id]).to eq(queue_item.id)
+          expect(context[:batch_id]).to eq(queue_item.batch_id)
+          expect(context[:draggable_name]).to eq(queue_item.draggable_name)
+          expect(context[:total_files_in_queue]).to eq(5)
+          expect(context[:file_position]).to be > 0
+        end
+      end
+    end
+    
+    context 'with standalone upload session' do
+      let(:upload_session) { create(:upload_session, :standalone, workspace: workspace, user: user) }
+      
+      describe '#part_of_queue?' do
+        it 'returns false when upload session is standalone' do
+          expect(upload_session.part_of_queue?).to be false
+        end
+      end
+      
+      describe '#queue_batch_id' do
+        it 'returns nil for standalone uploads' do
+          expect(upload_session.queue_batch_id).to be_nil
+        end
+      end
+      
+      describe '#queue_progress_context' do
+        it 'returns nil for standalone uploads' do
+          expect(upload_session.queue_progress_context).to be_nil
+        end
+      end
+    end
+  end
+
+
+  # NEW: Add factory trait tests
+  describe 'factory traits' do
+    let(:user) { create(:user) }
+    let(:workspace) { create(:workspace, user: user) }
+    
+    it 'creates queued upload session with proper associations' do
+      upload_session = create(:upload_session, :queued, workspace: workspace, user: user)
+      
+      expect(upload_session.queue_item).to be_present
+      expect(upload_session.queue_item.workspace).to eq(workspace)
+      expect(upload_session.queue_item.user).to eq(user)
+    end
+    
+    it 'creates batch upload sessions with same batch_id' do
+      batch_id = SecureRandom.uuid
+      upload_sessions = create_list(:upload_session, 3, :in_batch, 
+        batch_id: batch_id, workspace: workspace, user: user)
+      
+      batch_ids = upload_sessions.map(&:queue_batch_id).uniq
+      expect(batch_ids).to eq([batch_id])
+    end
+    
+    it 'creates completed_in_queue upload that updates queue progress' do
+      upload_session = create(:upload_session, :completed_in_queue, workspace: workspace, user: user)
+      
+      expect(upload_session.status).to eq('completed')
+      expect(upload_session.queue_item.completed_files).to be > 0
     end
   end
 end

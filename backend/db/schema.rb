@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_20_103236) do
+ActiveRecord::Schema[7.1].define(version: 2025_06_27_115856) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -108,6 +108,30 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_20_103236) do
     t.index ["user_id"], name: "index_privacies_on_user_id"
   end
 
+  create_table "queue_items", force: :cascade do |t|
+    t.bigint "workspace_id", null: false
+    t.bigint "user_id", null: false
+    t.string "batch_id", null: false
+    t.integer "draggable_type", default: 1, null: false
+    t.string "draggable_name", null: false
+    t.text "original_path"
+    t.integer "total_files", default: 0, null: false
+    t.integer "completed_files", default: 0, null: false
+    t.integer "failed_files", default: 0, null: false
+    t.integer "status", default: 0, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["batch_id", "status"], name: "index_queue_items_on_batch_id_and_status"
+    t.index ["batch_id"], name: "index_queue_items_on_batch_id"
+    t.index ["created_at"], name: "index_queue_items_on_created_at"
+    t.index ["metadata"], name: "index_queue_items_on_metadata", using: :gin
+    t.index ["user_id", "status"], name: "index_queue_items_on_user_id_and_status"
+    t.index ["user_id"], name: "index_queue_items_on_user_id"
+    t.index ["workspace_id", "status"], name: "index_queue_items_on_workspace_id_and_status"
+    t.index ["workspace_id"], name: "index_queue_items_on_workspace_id"
+  end
+
   create_table "roles", force: :cascade do |t|
     t.string "name"
     t.bigint "user_id", null: false
@@ -133,9 +157,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_20_103236) do
     t.string "assembled_file_path"
     t.datetime "virus_scan_queued_at"
     t.datetime "virus_scan_completed_at"
+    t.bigint "queue_item_id"
     t.index ["assembled_file_path"], name: "index_upload_sessions_on_assembled_file_path"
     t.index ["container_id"], name: "index_upload_sessions_on_container_id"
     t.index ["created_at"], name: "index_upload_sessions_on_created_at"
+    t.index ["queue_item_id", "status"], name: "index_upload_sessions_on_queue_item_id_and_status"
+    t.index ["queue_item_id"], name: "index_upload_sessions_on_queue_item_id"
     t.index ["status", "created_at"], name: "index_upload_sessions_on_status_and_created_at"
     t.index ["status"], name: "index_upload_sessions_on_status"
     t.index ["user_id", "status"], name: "index_upload_sessions_on_user_id_and_status"
@@ -181,8 +208,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_20_103236) do
   add_foreign_key "containers", "containers", column: "parent_container_id"
   add_foreign_key "containers", "workspaces"
   add_foreign_key "privacies", "users"
+  add_foreign_key "queue_items", "users"
+  add_foreign_key "queue_items", "workspaces"
   add_foreign_key "roles", "users"
   add_foreign_key "upload_sessions", "containers"
+  add_foreign_key "upload_sessions", "queue_items"
   add_foreign_key "upload_sessions", "users"
   add_foreign_key "upload_sessions", "workspaces"
   add_foreign_key "workspaces", "users"

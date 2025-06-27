@@ -531,8 +531,14 @@ RSpec.describe "Api::V1::Uploads", type: :request do
       end
 
       it 'returns error if upload session is not ready for completion' do
-        # Set upload session to a state that cannot be completed
-        upload_session.update!(status: 'pending')
+        # Create a session in assembling state but without chunks (not ready)
+        upload_session = create(:upload_session,
+          workspace: workspace,
+          user: user,
+          status: 'assembling',
+          chunks_count: 2
+        )
+        # Don't create any chunks - this makes it not ready for completion
         
         put "/api/v1/uploads/#{upload_session.id}", 
             params: { action_type: 'complete' },
@@ -541,7 +547,7 @@ RSpec.describe "Api::V1::Uploads", type: :request do
         expect(response).to have_http_status(:unprocessable_entity)
         
         json_response = JSON.parse(response.body)
-        expect(json_response['error']).to include('Invalid transition')  # Updated expectation
+        expect(json_response['error']).to include('not ready for assembly')
       end
 
       it 'returns error if chunks are missing' do

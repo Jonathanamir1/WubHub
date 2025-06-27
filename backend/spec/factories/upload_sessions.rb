@@ -1,4 +1,4 @@
-# spec/factories/upload_sessions.rb
+# spec/factories/upload_sessions.rb (UPDATED WITH QUEUE INTEGRATION)
 FactoryBot.define do
   factory :upload_session do
     sequence(:filename) { |n| "file_#{n}.mp3" }
@@ -11,17 +11,61 @@ FactoryBot.define do
     user
     workspace { association(:workspace, user: user) }
     # container is optional - defaults to nil (workspace root)
+    # queue_item is optional - defaults to nil (standalone upload)
     
     trait :in_container do
       association :container
     end
     
+    # NEW: Queue-related traits
+    trait :queued do
+      association :queue_item
+      
+      # Ensure queue_item belongs to same workspace and user
+      after(:build) do |upload_session|
+        upload_session.queue_item.workspace = upload_session.workspace
+        upload_session.queue_item.user = upload_session.user
+      end
+    end
+    
+    trait :standalone do
+      queue_item { nil }
+    end
+    
+    trait :in_batch do
+      transient do
+        batch_id { SecureRandom.uuid }
+        batch_size { 5 }
+      end
+      
+      after(:build) do |upload_session, evaluator|
+        # Create or find queue_item for this batch
+        upload_session.queue_item = build(:queue_item,
+          workspace: upload_session.workspace,
+          user: upload_session.user,
+          batch_id: evaluator.batch_id,
+          total_files: evaluator.batch_size,
+          draggable_type: 'folder',
+          draggable_name: 'Batch Upload'
+        )
+      end
+    end
+    
+    # Status traits
     trait :uploading do
       status { 'uploading' }
     end
     
     trait :assembling do
       status { 'assembling' }
+    end
+    
+    trait :virus_scanning do
+      status { 'virus_scanning' }
+    end
+    
+    trait :finalizing do
+      status { 'finalizing' }
     end
     
     trait :completed do
@@ -34,6 +78,10 @@ FactoryBot.define do
     
     trait :cancelled do
       status { 'cancelled' }
+    end
+    
+    trait :virus_detected do
+      status { 'virus_detected' }
     end
     
     # File type traits
@@ -143,6 +191,51 @@ FactoryBot.define do
           file_type: 'logic_project',
           estimated_duration: 180.5
         }
+      end
+    end
+    
+    # NEW: Queue integration scenarios
+    trait :first_in_queue do
+      queued
+      
+      after(:build) do |upload_session|
+        upload_session.queue_item.update!(completed_files: 0)
+      end
+    end
+    
+    trait :last_in_queue do
+      queued
+      
+      after(:build) do |upload_session|
+        upload_session.queue_item.update!(
+          completed_files: upload_session.queue_item.total_files - 1
+        )
+      end
+    end
+    
+    trait :completed_in_queue do
+      queued
+      
+      after(:build) do |upload_session|
+        # Ensure queue_item has proper file count
+        upload_session.queue_item.update!(total_files: 1, completed_files: 0)
+        # Set status to completed
+        upload_session.status = 'completed'
+      end
+      
+      after(:create) do |upload_session|
+        # Manually trigger the queue notification since we bypassed the state machine
+        upload_session.queue_item.mark_file_completed!
+      end
+    end
+    
+    trait :failed_in_queue do
+      queued
+      failed
+      
+      after(:create) do |upload_session|
+        # This will trigger the queue_item update
+        upload_session.queue_item.mark_file_failed!
       end
     end
   end
