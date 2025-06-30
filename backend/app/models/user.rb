@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :roles, dependent: :destroy
   has_many :privacies, dependent: :destroy
   has_many :upload_sessions, dependent: :destroy
+  has_many :queue_items, dependent: :destroy  # NEW: Add queue_items association
   
   # Active Storage for profile images
   has_one_attached :profile_image

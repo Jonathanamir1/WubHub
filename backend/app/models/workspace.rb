@@ -6,6 +6,7 @@ class Workspace < ApplicationRecord
   has_many :containers, dependent: :destroy
   has_many :assets, dependent: :destroy
   has_many :upload_sessions, dependent: :destroy
+  has_many :queue_items, dependent: :destroy
 
   validates :name, presence: true
   validates :description, length: { maximum: 1000 }
