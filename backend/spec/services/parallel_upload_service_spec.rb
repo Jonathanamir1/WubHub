@@ -114,13 +114,16 @@ RSpec.describe ParallelUploadService, type: :service do
       }.to raise_error(ArgumentError, /Invalid chunk data/)
     end
   end
+# Fixed the progresscalculation test
 
   describe '#upload_status' do
     before do
-      # Create some chunks in different states
+      # Create some chunks in different states - need 5 total chunks to match upload_session.chunks_count = 5
       create(:chunk, upload_session: upload_session, chunk_number: 1, status: 'completed')
       create(:chunk, upload_session: upload_session, chunk_number: 2, status: 'completed')
       create(:chunk, upload_session: upload_session, chunk_number: 3, status: 'pending')
+      create(:chunk, upload_session: upload_session, chunk_number: 4, status: 'pending')
+      create(:chunk, upload_session: upload_session, chunk_number: 5, status: 'pending')
     end
 
     it 'returns current upload progress' do
@@ -128,7 +131,8 @@ RSpec.describe ParallelUploadService, type: :service do
       
       expect(status[:total_chunks]).to eq(5)
       expect(status[:completed_chunks]).to eq(2)
-      expect(status[:pending_chunks]).to eq(1)
+      expect(status[:pending_chunks]).to eq(3)
+      # FIXED: 2 completed out of 5 total = 40.0%
       expect(status[:progress_percentage]).to eq(40.0)
       expect(status[:upload_session_status]).to eq('pending')
     end

@@ -220,52 +220,75 @@ RSpec.describe QueueProcessor, type: :service do
     let(:processor) { QueueProcessor.new(queue_item: queue_item, retry_attempts: 2) }
 
     before do
-      # Mark some upload sessions as failed using update_columns to bypass state machine
+      # Mark some upload sessions as failed using update! with proper status transitions
       first_session = queue_item.upload_sessions.first
-      first_session.update_columns(status: 'failed')
+      # Need to start upload and then fail it to get to failed state
+      first_session.start_upload!
+      first_session.fail!
       
-      second_session = queue_item.upload_sessions.second  
-      second_session.update_columns(status: 'virus_detected')
+      second_session = queue_item.upload_sessions.second
+      # For virus_detected, need to go through proper sequence
+      second_session.start_upload!
+      second_session.start_assembly!
+      second_session.start_virus_scan!
+      second_session.detect_virus!
     end
 
     it 'retries failed upload sessions' do
       failed_sessions = queue_item.upload_sessions.where(status: ['failed', 'virus_detected'])
+      retryable_sessions = queue_item.upload_sessions.where(status: ['failed'])
+      virus_sessions = queue_item.upload_sessions.where(status: ['virus_detected'])
       
-      failed_sessions.each do |session|
-        # Don't mock retry! since it doesn't exist - the service handles this gracefully
-      end
+      # Verify we have the expected failed sessions
+      expect(failed_sessions.count).to eq(2)
+      expect(retryable_sessions.count).to eq(1)
+      expect(virus_sessions.count).to eq(1)
 
       result = processor.retry_failed_uploads
 
-      expect(result[:retried_count]).to eq(2)
+      # Only failed sessions should be retried, virus_detected should be skipped
+      expect(result[:retried_count]).to eq(1)
+      expect(result[:skipped_count]).to eq(1)
       expect(result[:success]).to be true
       
-      # Verify sessions were updated to pending status
-      failed_sessions.each do |session|
+      # Verify only the failed session was updated to pending status
+      retryable_sessions.each do |session|
         expect(session.reload.status).to eq('pending')
+      end
+      
+      # Verify virus detected session remains unchanged
+      virus_sessions.each do |session|
+        expect(session.reload.status).to eq('virus_detected')
       end
     end
 
     it 'respects maximum retry attempts' do
-      failed_session = queue_item.upload_sessions.first
-      failed_session.update!(status: 'failed', metadata: { retry_count: 3 })
+      # Create a fresh session for this test to avoid state conflicts
+      fresh_session = create(:upload_session, queue_item: queue_item, workspace: workspace, user: user)
+      fresh_session.start_upload!
+      fresh_session.fail!
+      
+      # Update metadata with retry count that exceeds limit
+      fresh_session.update!(metadata: { 'retry_count' => 3 })
 
       result = processor.retry_failed_uploads
 
-      expect(result[:retried_count]).to eq(0)
-      expect(result[:skipped_count]).to eq(1)
+      # Should skip the session with max retries reached
+      expect(result[:retried_count]).to eq(1) # The original failed session from before block
+      expect(result[:skipped_count]).to eq(2) # max retries session + virus_detected session
       expect(result[:messages]).to include(/maximum retry attempts reached/)
     end
 
     it 'tracks retry attempts in session metadata' do
-      # Set up a failed session - just set it to failed directly (it starts as pending)
-      failed_session = queue_item.upload_sessions.first
-      failed_session.update_columns(status: 'failed') # Use update_columns to bypass state machine
+      # Set up a failed session properly - use a fresh session
+      failed_session = queue_item.upload_sessions.third # Use the third session that's still pending
+      failed_session.start_upload!
+      failed_session.fail!
 
-      # Verify it's in failed state
+      # Verify it's in failed state with empty metadata
       expect(failed_session.reload.status).to eq('failed')
+      expect(failed_session.metadata).to eq({})
 
-      # Don't mock retry! since it doesn't exist
       processor.retry_failed_uploads
 
       failed_session.reload
@@ -403,8 +426,9 @@ RSpec.describe QueueProcessor, type: :service do
     it 'handles partial pause scenarios' do
       sessions = queue_item.upload_sessions.to_a
       
-      # Set up different session states using update_columns to bypass state machine
-      sessions[0].update_columns(status: 'uploading') # This should be paused
+      # Set up different session states - one uploading, one completed, one failed
+      # For uploading session
+      sessions[0].start_upload!
       
       # For completed session, follow proper state sequence
       sessions[1].start_upload!
@@ -413,7 +437,9 @@ RSpec.describe QueueProcessor, type: :service do
       sessions[1].start_finalization!
       sessions[1].complete!
       
-      sessions[2].update_columns(status: 'failed')
+      # For failed session
+      sessions[2].start_upload!
+      sessions[2].fail!
 
       result = processor.pause_queue
 
@@ -456,7 +482,7 @@ RSpec.describe QueueProcessor, type: :service do
       end
       
       # Fail third session
-      sessions[2].update!(status: 'uploading')
+      sessions[2].start_upload!
       sessions[2].fail!
 
       result = processor.cleanup_and_finalize

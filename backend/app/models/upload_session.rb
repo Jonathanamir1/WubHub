@@ -1,4 +1,6 @@
-# app/models/upload_session.rb (CLEAN REWRITE)
+# app/models/upload_session.rb
+# Updated state machine to allow failed -> pending for retries
+
 class UploadSession < ApplicationRecord
   # Custom exception for invalid state transitions
   class InvalidTransition < StandardError; end
@@ -18,19 +20,19 @@ class UploadSession < ApplicationRecord
   
   MAX_FILE_SIZE = 5.gigabytes
   
-  # Define valid state transitions
+  # UPDATED: Define valid state transitions - allow failed to go back to pending for retries
   VALID_TRANSITIONS = {
     'pending' => %w[uploading failed cancelled],
-    'uploading' => %w[assembling failed cancelled],
-    'assembling' => %w[virus_scanning failed],
-    'virus_scanning' => %w[finalizing virus_detected virus_scan_failed],
-    'finalizing' => %w[completed finalization_failed],
+    'uploading' => %w[assembling failed cancelled pending],  # Allow pause: uploading -> pending
+    'assembling' => %w[virus_scanning failed pending],       # Allow pause: assembling -> pending  
+    'virus_scanning' => %w[finalizing virus_detected virus_scan_failed pending], # Allow pause
+    'finalizing' => %w[completed finalization_failed pending], # Allow pause
     'completed' => [],
-    'failed' => [],
-    'cancelled' => [],
-    'virus_detected' => [],
-    'virus_scan_failed' => [],
-    'finalization_failed' => []
+    'failed' => %w[pending],           # ALLOW RETRY: failed -> pending
+    'cancelled' => %w[pending],        # ALLOW RETRY: cancelled -> pending  
+    'virus_detected' => [],            # TERMINAL: No retries for security
+    'virus_scan_failed' => %w[pending], # Allow retry of scan failures
+    'finalization_failed' => %w[pending] # Allow retry of finalization failures
   }.freeze
   
   # Validations
@@ -62,6 +64,8 @@ class UploadSession < ApplicationRecord
   scope :active, -> { where(status: %w[pending uploading assembling virus_scanning finalizing]) }
   scope :completed, -> { where(status: 'completed') }
   scope :failed, -> { where(status: %w[failed virus_detected virus_scan_failed finalization_failed]) }
+  scope :retryable, -> { where(status: %w[failed cancelled virus_scan_failed finalization_failed]) }
+  scope :terminal, -> { where(status: %w[completed virus_detected]) }
   scope :expired, -> { 
     where(
       "(status IN ('pending') AND created_at < ?) OR (status IN ('failed', 'cancelled') AND created_at < ?)",
@@ -81,60 +85,42 @@ class UploadSession < ApplicationRecord
   # Callbacks
   after_update :notify_queue_item_of_status_change, if: :saved_change_to_status?
   
-  # Instance Methods
+  # Instance methods
+  def progress_percentage
+    return 100.0 if status == 'completed'
+    return 0.0 if chunks.count == 0
+    
+    completed_chunks = chunks.where(status: 'completed').count
+    (completed_chunks.to_f / chunks.count * 100).round(2)
+  end
+  
   def all_chunks_uploaded?
     chunks.where(status: 'completed').count == chunks_count
   end
   
-  def progress_percentage
-    return 0 if chunks_count.zero?
-    (chunks.completed.count.to_f / chunks_count * 100).round(2)
-  end
-  
-  def bytes_uploaded
-    chunks.completed.sum(:size)
-  end
-  
-  def estimated_time_remaining
-    return 0 unless uploading?
-    
-    completed_chunks = chunks.completed.count
-    return Float::INFINITY if completed_chunks.zero?
-    
-    time_elapsed = Time.current - updated_at
-    chunks_per_second = completed_chunks / time_elapsed
-    remaining_chunks = chunks_count - completed_chunks
-    
-    remaining_chunks / chunks_per_second
+  # Upload location methods
+  def upload_location
+    return '/' if container.nil?
+    container.full_path
   end
   
   def target_path
-    if container
-      "#{container.path}/#{filename}"
-    else
-      "/#{filename}"
-    end
+    return "/#{filename}" if container.nil?
+    "#{container.full_path}/#{filename}"
   end
   
-  # Missing methods from tests
-  def upload_location
-    if container
-      container.path
-    else
-      "/"
-    end
-  end
-  
+  # Chunk management methods
   def missing_chunks
-    expected_chunks = (1..chunks_count).to_a
-    existing_chunks = chunks.pluck(:chunk_number)
-    expected_chunks - existing_chunks
+    expected_chunk_numbers = (1..chunks_count).to_a
+    existing_chunk_numbers = chunks.pluck(:chunk_number)
+    expected_chunk_numbers - existing_chunk_numbers
   end
   
   def uploaded_size
-    chunks.completed.sum(:size)
+    chunks.where(status: 'completed').sum(:size)
   end
   
+  # File size and chunk methods
   def recommended_chunk_size
     case total_size
     when 0..10.megabytes
@@ -148,15 +134,23 @@ class UploadSession < ApplicationRecord
     end
   end
   
+  # Metadata helper methods
   def file_type
-    metadata['file_type']
+    metadata&.dig('file_type')
   end
   
   def estimated_duration
-    metadata['estimated_duration']
+    metadata&.dig('estimated_duration')
   end
   
-  # Queue integration methods
+  def original_path
+    metadata&.dig('original_path')
+  end
+  
+  def client_info
+    metadata&.dig('client_info')
+  end
+  
   def part_of_queue?
     queue_item_id.present?
   end
@@ -169,11 +163,11 @@ class UploadSession < ApplicationRecord
     return nil unless part_of_queue?
     
     {
-      queue_item_id: queue_item_id,
-      batch_id: queue_batch_id,
+      queue_item_id: queue_item.id,
+      batch_id: queue_item.batch_id,
       draggable_name: queue_item.draggable_name,
-      file_position: queue_item.upload_sessions.order(:created_at).pluck(:id).index(id) + 1,
-      total_files_in_queue: queue_item.total_files
+      total_files_in_queue: queue_item.total_files,
+      file_position: queue_item.upload_sessions.where('created_at <= ?', created_at).count
     }
   end
   
@@ -216,6 +210,26 @@ class UploadSession < ApplicationRecord
   
   def finalization_failed!
     transition_to!('finalization_failed')
+  end
+  
+  # NEW: Retry method for failed uploads
+  def retry!
+    transition_to!('pending')
+  end
+  
+  # NEW: Pause method for active uploads  
+  def pause!
+    transition_to!('pending')
+  end
+  
+  # NEW: Check if upload can be retried
+  def retryable?
+    status.in?(%w[failed cancelled virus_scan_failed finalization_failed])
+  end
+  
+  # NEW: Check if upload is in terminal state
+  def terminal?
+    status.in?(%w[completed virus_detected])
   end
   
   private

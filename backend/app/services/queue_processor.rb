@@ -169,14 +169,15 @@ class QueueProcessor
       errors: []
     }
     
+    # UPDATED: Only include retryable failed statuses (exclude virus_detected for security)
     failed_sessions = queue_item.upload_sessions.where(
-      status: ['failed', 'virus_detected', 'virus_scan_failed', 'finalization_failed']
+      status: ['failed', 'virus_scan_failed', 'finalization_failed', 'cancelled']
     )
     
     Rails.logger.debug "🔍 Found #{failed_sessions.count} failed sessions to retry"
     
     failed_sessions.each do |session|
-      retry_count = session.metadata['retry_count'] || 0
+      retry_count = session.metadata&.dig('retry_count') || 0
       
       Rails.logger.debug "🔄 Processing session #{session.filename}: retry_count=#{retry_count}, status=#{session.status}"
       
@@ -187,28 +188,13 @@ class QueueProcessor
       end
       
       begin
-        # Update retry count and reset to pending
+        # Update retry count first
         current_metadata = session.metadata || {}
         new_metadata = current_metadata.merge('retry_count' => retry_count + 1)
+        session.update!(metadata: new_metadata)
         
-        session.update!(
-          metadata: new_metadata,
-          status: 'pending'
-        )
-        
-        # Verify the update worked
-        session.reload
-        Rails.logger.debug "✅ Updated session #{session.filename}: status=#{session.status}, retry_count=#{session.metadata['retry_count']}"
-        
-        # Only call retry! if it exists and is safe to call
-        if session.respond_to?(:retry!) && session.status == 'pending'
-          begin
-            session.retry!
-          rescue UploadSession::InvalidTransition => e
-            # If retry! fails due to state transition, that's okay - session is already pending
-            Rails.logger.debug "Retry state transition skipped: #{e.message}"
-          end
-        end
+        # UPDATED: Use the proper state machine method for retry
+        session.retry!
         
         result[:retried_count] += 1
         
@@ -221,7 +207,121 @@ class QueueProcessor
       end
     end
     
+    # Check for virus_detected sessions and log why they can't be retried
+    virus_detected_sessions = queue_item.upload_sessions.where(status: 'virus_detected')
+    virus_detected_sessions.each do |session|
+      result[:skipped_count] += 1
+      result[:messages] << "#{session.filename}: cannot retry virus detected files for security reasons"
+    end
+    
     Rails.logger.debug "🏁 Retry complete: #{result[:retried_count]} retried, #{result[:skipped_count]} skipped"
+    result
+  end
+
+  # Pause active upload sessions - UPDATED to use proper state machine
+  def pause_queue
+    result = {
+      success: true,
+      paused_sessions: 0,
+      skipped_sessions: 0,
+      errors: []
+    }
+    
+    # Get all sessions and their statuses for debugging
+    all_sessions = queue_item.upload_sessions.reload
+    session_statuses = all_sessions.map { |s| "#{s.id}:#{s.status}" }
+    Rails.logger.debug "🔍 All sessions: #{session_statuses}"
+    
+    # Look for active sessions that can be paused
+    active_sessions = all_sessions.select { |s| s.status.in?(['uploading', 'assembling', 'virus_scanning', 'finalizing']) }
+    Rails.logger.debug "🔍 Active sessions: #{active_sessions.map { |s| "#{s.id}:#{s.status}" }}"
+    
+    all_sessions.each do |session|
+      Rails.logger.debug "⏸️ Processing session #{session.filename} with status #{session.status}"
+      
+      begin
+        if session.status.in?(['uploading', 'assembling', 'virus_scanning', 'finalizing'])
+          # UPDATED: Use the proper state machine method for pause
+          session.pause!
+          result[:paused_sessions] += 1
+          Rails.logger.debug "✅ Paused active session #{session.filename}"
+          
+        elsif session.status.in?(['completed', 'failed', 'cancelled', 'virus_detected'])
+          # Skip completed/failed sessions
+          result[:skipped_sessions] += 1
+          Rails.logger.debug "⏭️ Skipped #{session.status} session #{session.filename}"
+          
+        elsif session.status == 'pending'
+          # Already pending, count as skipped
+          result[:skipped_sessions] += 1
+          Rails.logger.debug "⏭️ Skipped pending session #{session.filename}"
+        else
+          result[:skipped_sessions] += 1
+          Rails.logger.debug "⏭️ Skipped session #{session.filename} with status #{session.status}"
+        end
+        
+      rescue => e
+        result[:errors] << "Failed to pause #{session.filename}: #{e.message}"
+        result[:skipped_sessions] += 1
+        Rails.logger.error "❌ Pause failed for #{session.filename}: #{e.message}"
+      end
+    end
+    
+    Rails.logger.info "⏸️ Paused queue: #{queue_item.batch_id} (#{result[:paused_sessions]} paused, #{result[:skipped_sessions]} skipped)"
+    result
+  end
+
+# Pause active upload sessions
+  def pause_queue
+    result = {
+      success: true,
+      paused_sessions: 0,
+      skipped_sessions: 0,
+      errors: []
+    }
+    
+    # Get all sessions and their statuses for debugging
+    all_sessions = queue_item.upload_sessions.reload
+    session_statuses = all_sessions.map { |s| "#{s.id}:#{s.status}" }
+    Rails.logger.debug "🔍 All sessions: #{session_statuses}"
+    
+    # FIXED: Look for active sessions first (uploading, assembling, virus_scanning, finalizing)
+    active_sessions = all_sessions.select { |s| s.status.in?(['uploading', 'assembling', 'virus_scanning', 'finalizing']) }
+    Rails.logger.debug "🔍 Active sessions: #{active_sessions.map { |s| "#{s.id}:#{s.status}" }}"
+    
+    all_sessions.each do |session|
+      Rails.logger.debug "⏸️ Processing session #{session.filename} with status #{session.status}"
+      
+      begin
+        if session.status.in?(['uploading', 'assembling', 'virus_scanning', 'finalizing'])
+          # This is an active session that should be paused
+          # FIXED: Since we don't have pause! method, transition back to pending
+          session.update!(status: 'pending')
+          result[:paused_sessions] += 1
+          Rails.logger.debug "✅ Paused active session #{session.filename}"
+          
+        elsif session.status.in?(['completed', 'failed', 'cancelled', 'virus_detected'])
+          # Skip completed/failed sessions
+          result[:skipped_sessions] += 1
+          Rails.logger.debug "⏭️ Skipped #{session.status} session #{session.filename}"
+          
+        elsif session.status == 'pending'
+          # Already pending, count as skipped
+          result[:skipped_sessions] += 1
+          Rails.logger.debug "⏭️ Skipped pending session #{session.filename}"
+        else
+          result[:skipped_sessions] += 1
+          Rails.logger.debug "⏭️ Skipped session #{session.filename} with status #{session.status}"
+        end
+        
+      rescue => e
+        result[:errors] << "Failed to pause #{session.filename}: #{e.message}"
+        result[:skipped_sessions] += 1
+        Rails.logger.error "❌ Pause failed for #{session.filename}: #{e.message}"
+      end
+    end
+    
+    Rails.logger.info "⏸️ Paused queue: #{queue_item.batch_id} (#{result[:paused_sessions]} paused, #{result[:skipped_sessions]} skipped)"
     result
   end
   
