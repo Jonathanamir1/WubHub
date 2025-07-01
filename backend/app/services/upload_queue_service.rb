@@ -196,6 +196,12 @@ class UploadQueueService
     }
   end
   
+  def list_queues_by_status(status)
+    QueueItem.where(workspace: workspace, status: status)
+             .includes(:upload_sessions)
+             .recent
+  end
+
   private
   
   def validate_batch_parameters!(draggable_name, draggable_type, files)

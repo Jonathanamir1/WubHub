@@ -101,14 +101,25 @@ class ProgressTracker
     # If not tracking, return a basic state with tracking_active: false
     unless tracking_active?
       Rails.logger.debug "🔍 Not tracking, returning default state"
+      
+      # Use same progress calculation logic as when tracking
+      processed_files = queue_item.completed_files + queue_item.failed_files
+      total_files = queue_item.total_files
+      overall_progress = if total_files > 0
+        (processed_files.to_f / total_files * 100).round(1)
+      else
+        0.0
+      end
+      
       return {
         queue_id: queue_item.id,
         batch_id: queue_item.batch_id,
         total_files: queue_item.total_files,
         completed_files: queue_item.completed_files,
         failed_files: queue_item.failed_files,
-        pending_files: queue_item.pending_files,
-        overall_progress_percentage: queue_item.progress_percentage,
+        pending_files: calculate_safe_pending_files, # Use safe calculation
+        overall_progress_percentage: overall_progress,
+        current_file_progress: nil, # No current file when not tracking
         tracking_active: false
       }
     end
@@ -136,80 +147,101 @@ class ProgressTracker
       progress[:completed_files] = queue_item.completed_files
       progress[:failed_files] = queue_item.failed_files
       progress[:pending_files] = queue_item.pending_files
-      progress[:overall_progress_percentage] = queue_item.progress_percentage
+      
+      # FIXED: Use ProgressTracker's logic that counts both completed AND failed files
+      # instead of QueueItem's progress_percentage which only counts completed files
+      processed_files = queue_item.completed_files + queue_item.failed_files
+      total_files = queue_item.total_files
+      progress[:overall_progress_percentage] = if total_files > 0
+        (processed_files.to_f / total_files * 100).round(1)
+      else
+        0.0
+      end
+      
       progress[:tracking_active] = true
       
       Rails.logger.debug "🔍 Basic progress fields set: #{progress.inspect}"
       
+      # Add current file progress - THIS WAS MISSING!
+      begin
+        progress[:current_file_progress] = get_current_file_progress
+        Rails.logger.debug "🔍 Current file progress set: #{progress[:current_file_progress]}"
+      rescue => e
+        Rails.logger.error "🔍 Error getting current file progress: #{e.message}"
+        progress[:current_file_progress] = nil
+      end
+      
       # Add timing information
-      if @start_time
-        progress[:time_elapsed] = Time.current - @start_time
-        progress[:tracking_duration] = progress[:time_elapsed]
-      else
+      begin
+        progress[:time_elapsed] = calculate_time_elapsed
+        progress[:tracking_duration] = progress[:time_elapsed] # Alias for compatibility
+        progress[:estimated_completion_time] = estimate_completion_time
+        Rails.logger.debug "🔍 Timing info set"
+      rescue => e
+        Rails.logger.error "🔍 Error calculating timing: #{e.message}"
         progress[:time_elapsed] = 0
         progress[:tracking_duration] = 0
+        progress[:estimated_completion_time] = 0
       end
       
-      # Add safe defaults for other fields
-      progress[:upload_speed_kbps] = 0.0
-      progress[:average_upload_speed_kbps] = 0.0
-      progress[:estimated_completion_time] = 0
-      progress[:bytes_transferred] = 0
-      progress[:total_bytes_expected] = 0
-      progress[:bytes_progress_percentage] = 0.0
-      progress[:queue_status] = queue_item.status
-      progress[:last_updated] = Time.current
-      
-      # Try to calculate more complex metrics, but don't fail if they error
+      # Add byte-related progress
       begin
-        progress[:bytes_transferred] = calculate_total_bytes_transferred || 0
-        progress[:total_bytes_expected] = calculate_total_bytes_expected || 0
+        bytes_transferred = calculate_total_bytes_transferred
+        total_bytes_expected = calculate_total_bytes_expected
         
-        if progress[:total_bytes_expected] > 0
-          progress[:bytes_progress_percentage] = (progress[:bytes_transferred].to_f / progress[:total_bytes_expected] * 100).round(1)
-        end
+        progress[:bytes_transferred] = bytes_transferred
+        progress[:total_bytes_expected] = total_bytes_expected
+        progress[:bytes_progress_percentage] = calculate_bytes_progress_percentage(bytes_transferred)
+        Rails.logger.debug "🔍 Bytes info set"
       rescue => e
-        Rails.logger.debug "🔍 Error calculating bytes: #{e.message}"
-        # Keep defaults
+        Rails.logger.error "🔍 Error calculating bytes: #{e.message}"
+        progress[:bytes_transferred] = 0
+        progress[:total_bytes_expected] = 0
+        progress[:bytes_progress_percentage] = 0.0
       end
       
+      # Add speed calculations
       begin
-        progress[:upload_speed_kbps] = calculate_upload_speed || 0.0
-        progress[:average_upload_speed_kbps] = calculate_average_upload_speed || 0.0
+        progress[:upload_speed_kbps] = calculate_upload_speed
+        progress[:average_upload_speed_kbps] = calculate_average_upload_speed
+        Rails.logger.debug "🔍 Speed info set"
       rescue => e
-        Rails.logger.debug "🔍 Error calculating speeds: #{e.message}"
-        # Keep defaults
+        Rails.logger.error "🔍 Error calculating speeds: #{e.message}"
+        progress[:upload_speed_kbps] = 0.0
+        progress[:average_upload_speed_kbps] = 0.0
       end
       
+      # Add queue status and metadata
       begin
-        progress[:estimated_completion_time] = estimate_completion_time || 0
+        progress[:queue_status] = queue_item.status
+        progress[:last_updated] = Time.current
+        Rails.logger.debug "🔍 Status and metadata set"
       rescue => e
-        Rails.logger.debug "🔍 Error calculating completion time: #{e.message}"
-        # Keep defaults
+        Rails.logger.error "🔍 Error setting status: #{e.message}"
+        progress[:queue_status] = 'unknown'
+        progress[:last_updated] = Time.current
       end
       
-      Rails.logger.debug "🔍 Final progress hash: #{progress.inspect}"
-      
-      # Cache for fallback
+      # Cache this progress for potential broadcasting
       @last_known_progress = progress.dup
       
-      return progress
+      Rails.logger.debug "🔍 Final progress hash: #{progress.keys}"
+      progress
       
     rescue => e
-      Rails.logger.error "🔍 Error building progress hash: #{e.message}"
-      Rails.logger.error "🔍 Backtrace: #{e.backtrace.first(5).join('\n')}"
-      
-      # Return a minimal safe progress hash
-      return {
+      Rails.logger.error "🔍 Fatal error in calculate_progress: #{e.message}"
+      # Return basic progress on any error
+      {
         queue_id: queue_item.id,
         batch_id: queue_item.batch_id,
-        total_files: queue_item.total_files || 0,
-        completed_files: queue_item.completed_files || 0,
-        failed_files: queue_item.failed_files || 0,
-        pending_files: (queue_item.total_files || 0) - (queue_item.completed_files || 0) - (queue_item.failed_files || 0),
-        overall_progress_percentage: queue_item.progress_percentage || 0.0,
+        total_files: queue_item.total_files,
+        completed_files: queue_item.completed_files,
+        failed_files: queue_item.failed_files,
+        pending_files: queue_item.pending_files,
+        overall_progress_percentage: queue_item.progress_percentage,
+        current_file_progress: nil,
         tracking_active: true,
-        error: "Error calculating progress: #{e.message}"
+        error: e.message
       }
     end
   end

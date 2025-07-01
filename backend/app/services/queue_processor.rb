@@ -564,77 +564,45 @@ class QueueProcessor
     result
   end
   
-  def process_uploads_concurrently(upload_sessions, result)
-    puts "🔄 PROCESS_UPLOADS_CONCURRENTLY: Processing #{upload_sessions.length} uploads sequentially"
-    
+  def process_uploads_concurrently(upload_sessions, result)    
     result[:total_uploads] = upload_sessions.length
     
     # Process uploads sequentially to avoid transaction issues
     upload_sessions.each do |session|
-      puts "🚀 STARTING session #{session.id} (#{session.filename})"
       begin
         process_single_upload(session, result)
-        puts "✅ COMPLETED session #{session.id} (#{session.filename})"
-      rescue => e
-        puts "🚨 RESCUE BLOCK HIT for session #{session.id} (#{session.filename}): #{e.message}"
-        puts "🚨 Error class: #{e.class.name}"
-        puts "🚨 Session status before handle_upload_error: #{session.status}"
-        
-        handle_upload_error(session, e, result)
-        
-        puts "🚨 Session status after handle_upload_error: #{session.reload.status}"
+      rescue => e        
+        handle_upload_error(session, e, result)        
       end
     end
     
     result[:success] = result[:failed_uploads] == 0
-    puts "🏁 FINAL RESULT: completed=#{result[:completed_uploads]}, failed=#{result[:failed_uploads]}, success=#{result[:success]}"
   end
 
-  def process_single_upload(session, result, bandwidth_limit = nil)
-    puts "🔧 PROCESS_SINGLE_UPLOAD: Starting #{session.filename} (ID: #{session.id})"
-    
+  def process_single_upload(session, result, bandwidth_limit = nil)    
     begin
       # Step 1: Start the upload
-      session.start_upload!
-      puts "📤 Upload started for: #{session.filename}"
-      
+      session.start_upload!      
       # Step 2: Create parallel upload service for this session
+      # FIXED: Use the configured max_concurrent_uploads directly, no artificial limit
       parallel_service = ParallelUploadService.new(
         session, 
-        max_concurrent: [max_concurrent_uploads, 2].min
+        max_concurrent: max_concurrent_uploads
       )
       
       # Step 3: Process the upload chunks
-      puts "📦 About to call upload_chunks_parallel for: #{session.filename}"
-      parallel_service.upload_chunks_parallel([])
-      puts "📦 Chunks processed for: #{session.filename}"
-      
+      parallel_service.upload_chunks_parallel([])      
       # Steps 4-7: Move through pipeline states
-      session.start_assembly!
-      puts "🔧 Assembly started for: #{session.filename}"
-      
-      session.start_virus_scan!
-      puts "🔍 Virus scan started for: #{session.filename}"
-      
-      session.start_finalization!
-      puts "🏁 Finalization started for: #{session.filename}"
-      
-      session.complete!
-      puts "✅ Upload completed for: #{session.filename}"
-      
+      session.start_assembly!      
+      session.start_virus_scan!      
+      session.start_finalization!      
+      session.complete!      
       # Update the processor's result tracking
       @mutex.synchronize do
         result[:completed_uploads] += 1
         @processing_stats[:total_bytes_transferred] += session.total_size
-      end
-      
-      puts "✅ PROCESS_SINGLE_UPLOAD: Successfully completed #{session.filename}"
-      
-    rescue => e
-      puts "❌ EXCEPTION in process_single_upload for #{session.filename}: #{e.message}"
-      puts "❌ Exception class: #{e.class.name}"
-      puts "❌ Session status when exception occurred: #{session.status}"
-      
+      end      
+    rescue => e      
       # Re-raise so it gets caught by process_uploads_concurrently
       raise e
     end
@@ -644,6 +612,20 @@ class QueueProcessor
     @mutex.synchronize do
       result[:failed_uploads] += 1
       result[:errors] << "#{session.filename}: #{error.message}"
+    end
+    
+    # CRITICAL FIX: Actually transition the session to failed state
+    # This will trigger the callback that updates the queue item
+    begin
+      session.fail!
+    rescue => transition_error
+      Rails.logger.error "Failed to transition session to failed state: #{transition_error.message}"
+      # Fallback: at least try to update status directly
+      begin
+        session.update!(status: 'failed')
+      rescue => update_error
+        Rails.logger.error "Failed to update session status: #{update_error.message}"
+      end
     end
     
     # Add recovery suggestions based on error type

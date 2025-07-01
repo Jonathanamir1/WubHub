@@ -1,6 +1,4 @@
-# Add this debug test to see what's happening with the mixed failure scenario
 # spec/integrations/debug_mixed_failure_spec.rb
-
 require 'rails_helper'
 
 RSpec.describe 'Debug Mixed Failure', type: :integration do
@@ -28,7 +26,8 @@ RSpec.describe 'Debug Mixed Failure', type: :integration do
       container: container
     )
     
-    processor = QueueProcessor.new(queue_item: queue_item)
+    # FIXED: Use explicit max_concurrent_uploads to match the test expectations
+    processor = QueueProcessor.new(queue_item: queue_item, max_concurrent_uploads: 3)
     upload_sessions = queue_item.upload_sessions.to_a
     
     puts "📊 Initial state:"
@@ -37,22 +36,31 @@ RSpec.describe 'Debug Mixed Failure', type: :integration do
       puts "  Session #{i+1}: #{session.filename} (status: #{session.status})"
     end
     
-    # Mock the uploads - first two succeed, third fails
-    upload_sessions.each_with_index do |session, index|
+    # FIXED: Use flexible mocking like in the main integration test
+    failing_session_filename = upload_sessions[1].filename # Second file fails
+    
+    # Mock ParallelUploadService.new with flexible parameter matching
+    allow(ParallelUploadService).to receive(:new) do |session, options|
       mock_service = instance_double(ParallelUploadService)
-      allow(ParallelUploadService).to receive(:new).with(session, max_concurrent: 2).and_return(mock_service)
       
-      if index == 1 # Second file fails (index 1)
+      # Check if this session should fail
+      if session.filename == failing_session_filename
         puts "🔥 Setting up FAILURE for #{session.filename}"
+        
         allow(mock_service).to receive(:upload_chunks_parallel) do
-          # After this error is raised, the session should be in 'uploading' state
-          # The error handler should then call session.fail!
-          raise StandardError, "Network timeout"
+          puts "💥 Simulating failure for #{session.filename}"
+          raise StandardError, "Network timeout during upload"
         end
       else
         puts "✅ Setting up SUCCESS for #{session.filename}"
-        allow(mock_service).to receive(:upload_chunks_parallel).and_return([])
+        
+        allow(mock_service).to receive(:upload_chunks_parallel) do
+          puts "📦 Simulating success for #{session.filename}"
+          []
+        end
       end
+      
+      mock_service
     end
     
     # Process queue
@@ -85,11 +93,21 @@ RSpec.describe 'Debug Mixed Failure', type: :integration do
     puts "\n🎯 Test expectation: result[:success] should be FALSE"
     puts "🎯 Actual result: #{result[:success]}"
     
-    if result[:success] == true
-      puts "❌ PROBLEM: Success is true but should be false"
-      puts "❌ This means failed_uploads is 0: #{result[:failed_uploads]}"
-    else
+    # Verify mixed results
+    expect(result[:success]).to be false
+    expect(result[:completed_uploads]).to eq(2)
+    expect(result[:failed_uploads]).to eq(1)
+    expect(result[:errors]).to include(/Network timeout/)
+    
+    # Verify queue item reflects mixed results
+    expect(queue_item.status).to eq('failed')
+    expect(queue_item.completed_files).to eq(2)
+    expect(queue_item.failed_files).to eq(1)
+    
+    if result[:success] == false
       puts "✅ SUCCESS: Mixed failure detected correctly"
+    else
+      puts "❌ PROBLEM: Success is true but should be false"
     end
   end
 end
