@@ -531,22 +531,23 @@ class QueueProcessor
   def initialize_result
     {
       success: false,
+      total_uploads: 0,
       completed_uploads: 0,
       failed_uploads: 0,
-      total_uploads: 0,
       errors: [],
-      warnings: [],
-      recovery_suggestions: [],
+      recovery_suggestions: [],  # This is the critical missing field!
       retry_recommendations: [],
-      total_processing_time: 0
+      total_processing_time: 0,
+      average_upload_speed: 0
     }
   end
   
   def initialize_stats
     {
-      total_processing_time: 0,
+      start_time: Time.current,
       total_bytes_transferred: 0,
-      average_upload_speed: 0
+      uploads_completed: 0,
+      uploads_failed: 0
     }
   end
   
@@ -612,44 +613,54 @@ class QueueProcessor
     @mutex.synchronize do
       result[:failed_uploads] += 1
       result[:errors] << "#{session.filename}: #{error.message}"
-    end
-    
-    # CRITICAL FIX: Actually transition the session to failed state
-    # This will trigger the callback that updates the queue item
-    begin
-      session.fail!
-    rescue => transition_error
-      Rails.logger.error "Failed to transition session to failed state: #{transition_error.message}"
-      # Fallback: at least try to update status directly
-      begin
-        session.update!(status: 'failed')
-      rescue => update_error
-        Rails.logger.error "Failed to update session status: #{update_error.message}"
+      
+      # Add recovery suggestions based on error type
+      case error
+      when Net::ReadTimeout, Net::OpenTimeout, Timeout::Error
+        result[:recovery_suggestions] << "Check network connection and retry"
+        result[:retry_recommendations] << "Network timeout - retry upload"
+      when Errno::ENOSPC
+        result[:recovery_suggestions] << "Free up storage space and retry"
+        result[:retry_recommendations] << "Storage full - free space and retry"
+      when ActiveRecord::StatementInvalid
+        result[:recovery_suggestions] << "Database connection issue - retry queue"
+        result[:retry_recommendations] << "Database error - retry processing"
+      else
+        result[:recovery_suggestions] << "Unknown error - check logs and retry"
+        result[:retry_recommendations] << "Unknown error - check logs and retry"
       end
     end
     
-    # Add recovery suggestions based on error type
-    case error
-    when Net::ReadTimeout, Net::OpenTimeout, Timeout::Error
-      result[:recovery_suggestions] << "Check network connection and retry"
-      result[:retry_recommendations] << "Network timeout - retry upload"
-    when Errno::ENOSPC
-      result[:recovery_suggestions] << "Free up storage space and retry"
-      result[:retry_recommendations] << "Storage full - free space and retry"
-    when ActiveRecord::StatementInvalid
-      result[:recovery_suggestions] << "Database connection issue - retry queue"
-      result[:retry_recommendations] << "Database error - retry processing"
-    else
-      result[:retry_recommendations] << "Unknown error - check logs and retry"
+    # Update session status to failed (outside mutex to avoid deadlock)
+    begin
+      session.fail!
+    rescue => e
+      Rails.logger.error "Failed to update session status: #{e.message}"
     end
     
     Rails.logger.error "❌ Upload failed for #{session.filename}: #{error.message}"
   end
-  
+    
   def handle_processing_error(error, result)
     result[:success] = false
     result[:errors] << "Queue processing failed: #{error.message}"
-    result[:retry_recommendations] << "Processing failed - check logs and retry queue"
+    
+    # Add recovery suggestions based on error type
+    case error
+    when Net::ReadTimeout, Net::OpenTimeout, Timeout::Error
+      result[:recovery_suggestions] << "Check network connection and retry processing"
+      result[:retry_recommendations] << "Network timeout - retry queue processing"
+    when Errno::ENOSPC
+      result[:recovery_suggestions] << "Free up storage space and retry processing"
+      result[:retry_recommendations] << "Storage full - free space and retry"
+    when ActiveRecord::StatementInvalid
+      result[:recovery_suggestions] << "Database connection issue - retry queue processing"
+      result[:retry_recommendations] << "Database error - retry processing"
+    else
+      result[:recovery_suggestions] << "Unknown processing error - check logs and retry"
+      result[:retry_recommendations] << "Processing failed - check logs and retry queue"
+    end
+    
     Rails.logger.error "❌ Queue processing error: #{error.message}"
   end
   

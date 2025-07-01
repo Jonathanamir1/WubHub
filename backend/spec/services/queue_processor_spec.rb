@@ -60,12 +60,22 @@ RSpec.describe QueueProcessor, type: :service do
     end
 
     it 'updates queue status to processing when started' do
-      # Mock the upload processing
-      allow_any_instance_of(ParallelUploadService).to receive(:upload_chunks_parallel).and_return([])
+      # Create a controlled mock that allows us to intercept the processing state
+      allow_any_instance_of(ParallelUploadService).to receive(:upload_chunks_parallel) do
+        # At this point in the mock, the queue should be in 'processing' state
+        # because start_processing! was called before creating the parallel service
+        expect(queue_item.reload.status).to eq('processing')
+        [] # Return empty array to simulate successful processing
+      end
 
+      # The test now verifies that during upload processing, the status is 'processing'
+      # rather than trying to catch the state change timing
       expect {
         processor.process_queue
-      }.to change { queue_item.reload.status }.from('pending').to('processing')
+      }.to change { queue_item.reload.status }.from('pending')
+      
+      # After processing completes, it should be in completed state
+      expect(queue_item.reload.status).to eq('completed')
     end
 
     it 'handles upload session failures gracefully' do
@@ -556,7 +566,14 @@ RSpec.describe QueueProcessor, type: :service do
         { error: ActiveRecord::StatementInvalid.new("Lock timeout"), suggestion: /retry/ }
       ]
 
-      test_cases.each do |test_case|
+      test_cases.each_with_index do |test_case, index|
+        # CRITICAL FIX: Create completely fresh upload sessions for each test case
+        queue_item.upload_sessions.destroy_all
+        create_list(:upload_session, 3, queue_item: queue_item, workspace: workspace, user: user)
+        queue_item.reload
+        
+        processor = QueueProcessor.new(queue_item: queue_item)
+        
         allow_any_instance_of(ParallelUploadService).to receive(:upload_chunks_parallel)
           .and_raise(test_case[:error])
 
@@ -603,6 +620,45 @@ RSpec.describe QueueProcessor, type: :service do
 
       expect(prioritized_order.first.metadata['priority']).to eq('high')
       expect(prioritized_order.last.metadata['priority']).to eq('low')
+    end
+  end
+
+  it 'DEBUG: provides recovery suggestions for common failures with detailed logging' do
+    # Test various failure scenarios
+    test_cases = [
+      { error: Net::ReadTimeout.new("Timeout"), suggestion: /network/, description: "Network timeout" },
+      { error: Errno::ENOSPC.new("No space left"), suggestion: /storage/, description: "Storage full" },
+      { error: ActiveRecord::StatementInvalid.new("Lock timeout"), suggestion: /retry/, description: "Database lock" }
+    ]
+
+    test_cases.each_with_index do |test_case, index|
+      puts "\n🔍 DEBUG Test Case #{index + 1}: #{test_case[:description]}"
+      puts "   Error type: #{test_case[:error].class.name}"
+      puts "   Error message: #{test_case[:error].message}"
+      puts "   Expected pattern: #{test_case[:suggestion]}"
+      
+      # ADD THIS: Recreate sessions for each test case
+      queue_item.upload_sessions.destroy_all
+      create_list(:upload_session, 3, queue_item: queue_item, workspace: workspace, user: user)
+      queue_item.reload
+      
+      # Create a fresh processor for each test case
+      processor = QueueProcessor.new(queue_item: queue_item)
+      
+      # Mock the upload to raise the specific error
+      allow_any_instance_of(ParallelUploadService).to receive(:upload_chunks_parallel) do
+        puts "   🚀 Mock upload_chunks_parallel called - raising #{test_case[:error].class.name}"
+        raise test_case[:error]
+      end
+
+      # Process the queue and capture the result
+      puts "   📋 Calling process_queue..."
+      result = processor.process_queue
+      
+      # ... rest of your debug code ...
+      
+      # The actual test assertion
+      expect(result[:recovery_suggestions].join(" ")).to match(test_case[:suggestion])
     end
   end
 end
