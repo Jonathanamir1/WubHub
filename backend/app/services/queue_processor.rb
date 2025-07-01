@@ -565,49 +565,81 @@ class QueueProcessor
   end
   
   def process_uploads_concurrently(upload_sessions, result)
-    concurrent_groups = parallel_chunk_processing(upload_sessions)
-    bandwidth_allocation = calculate_bandwidth_allocation(concurrent_groups.length)
+    puts "🔄 PROCESS_UPLOADS_CONCURRENTLY: Processing #{upload_sessions.length} uploads sequentially"
     
     result[:total_uploads] = upload_sessions.length
     
-    threads = concurrent_groups.map.with_index do |group, group_index|
-      Thread.new do
-        group.each do |session|
-          begin
-            process_single_upload(session, result, bandwidth_allocation[:per_stream_limit])
-          rescue => e
-            handle_upload_error(session, e, result)
-          end
-        end
+    # Process uploads sequentially to avoid transaction issues
+    upload_sessions.each do |session|
+      puts "🚀 STARTING session #{session.id} (#{session.filename})"
+      begin
+        process_single_upload(session, result)
+        puts "✅ COMPLETED session #{session.id} (#{session.filename})"
+      rescue => e
+        puts "🚨 RESCUE BLOCK HIT for session #{session.id} (#{session.filename}): #{e.message}"
+        puts "🚨 Error class: #{e.class.name}"
+        puts "🚨 Session status before handle_upload_error: #{session.status}"
+        
+        handle_upload_error(session, e, result)
+        
+        puts "🚨 Session status after handle_upload_error: #{session.reload.status}"
       end
     end
     
-    threads.each(&:join)
     result[:success] = result[:failed_uploads] == 0
+    puts "🏁 FINAL RESULT: completed=#{result[:completed_uploads]}, failed=#{result[:failed_uploads]}, success=#{result[:success]}"
   end
-  
+
   def process_single_upload(session, result, bandwidth_limit = nil)
-    @mutex.synchronize do
-      result[:processing_session] = session.filename
+    puts "🔧 PROCESS_SINGLE_UPLOAD: Starting #{session.filename} (ID: #{session.id})"
+    
+    begin
+      # Step 1: Start the upload
+      session.start_upload!
+      puts "📤 Upload started for: #{session.filename}"
+      
+      # Step 2: Create parallel upload service for this session
+      parallel_service = ParallelUploadService.new(
+        session, 
+        max_concurrent: [max_concurrent_uploads, 2].min
+      )
+      
+      # Step 3: Process the upload chunks
+      puts "📦 About to call upload_chunks_parallel for: #{session.filename}"
+      parallel_service.upload_chunks_parallel([])
+      puts "📦 Chunks processed for: #{session.filename}"
+      
+      # Steps 4-7: Move through pipeline states
+      session.start_assembly!
+      puts "🔧 Assembly started for: #{session.filename}"
+      
+      session.start_virus_scan!
+      puts "🔍 Virus scan started for: #{session.filename}"
+      
+      session.start_finalization!
+      puts "🏁 Finalization started for: #{session.filename}"
+      
+      session.complete!
+      puts "✅ Upload completed for: #{session.filename}"
+      
+      # Update the processor's result tracking
+      @mutex.synchronize do
+        result[:completed_uploads] += 1
+        @processing_stats[:total_bytes_transferred] += session.total_size
+      end
+      
+      puts "✅ PROCESS_SINGLE_UPLOAD: Successfully completed #{session.filename}"
+      
+    rescue => e
+      puts "❌ EXCEPTION in process_single_upload for #{session.filename}: #{e.message}"
+      puts "❌ Exception class: #{e.class.name}"
+      puts "❌ Session status when exception occurred: #{session.status}"
+      
+      # Re-raise so it gets caught by process_uploads_concurrently
+      raise e
     end
-    
-    # Create parallel upload service for this session
-    parallel_service = ParallelUploadService.new(
-      session, 
-      max_concurrent: [max_concurrent_uploads, 2].min
-    )
-    
-    # Process the upload
-    parallel_service.upload_chunks_parallel([])
-    
-    @mutex.synchronize do
-      result[:completed_uploads] += 1
-      @processing_stats[:total_bytes_transferred] += session.total_size
-    end
-    
-    Rails.logger.info "✅ Completed upload: #{session.filename}"
   end
-  
+
   def handle_upload_error(session, error, result)
     @mutex.synchronize do
       result[:failed_uploads] += 1

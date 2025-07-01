@@ -232,7 +232,41 @@ class UploadSession < ApplicationRecord
     status.in?(%w[completed virus_detected])
   end
   
+  after_update :notify_queue_item_of_status_change, if: :saved_change_to_status?
+
   private
+
+  def notify_queue_item_of_status_change
+    # Early return if no queue_item_id
+    return unless queue_item_id.present?
+    
+    Rails.logger.debug "🔔 UploadSession #{id} status changed to #{status}, notifying queue item #{queue_item_id}"
+    
+    begin
+      # Try to find the queue item explicitly instead of using the association
+      queue = QueueItem.find(queue_item_id)
+      
+      case status
+      when 'completed'
+        Rails.logger.debug "📈 Upload session #{id} completed, updating queue item #{queue_item_id}"
+        queue.mark_file_completed!
+        Rails.logger.debug "✅ Queue item updated: completed_files=#{queue.reload.completed_files}"
+      when 'failed', 'cancelled', 'virus_detected'
+        Rails.logger.debug "📉 Upload session #{id} failed (#{status}), updating queue item #{queue_item_id}"
+        queue.mark_file_failed!
+        Rails.logger.debug "✅ Queue item updated: failed_files=#{queue.reload.failed_files}"
+      else
+        Rails.logger.debug "📝 Upload session #{id} status changed to #{status} (no queue update needed)"
+      end
+      
+    rescue ActiveRecord::RecordNotFound => e
+      Rails.logger.error "❌ Queue item #{queue_item_id} not found for upload session #{id}: #{e.message}"
+    rescue => e
+      Rails.logger.error "❌ Failed to notify queue item #{queue_item_id} of status change: #{e.message}"
+      Rails.logger.error "❌ Error class: #{e.class.name}"
+      # Don't re-raise - we don't want to break the upload session update
+    end
+  end
   
   def transition_to!(new_status)
     unless valid_transition?(status, new_status)
