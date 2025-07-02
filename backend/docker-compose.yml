@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: wubhub_development
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wubhub_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - wubhub_network
+
+  web:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgres://postgres:password@db:5432/wubhub_development
+      REDIS_URL: redis://redis:6379/0
+
+      # Cloudflare R2 Environment Variables
+      CLOUDFLARE_R2_ACCESS_KEY_ID: ${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      CLOUDFLARE_R2_BUCKET: ${CLOUDFLARE_R2_BUCKET}
+      CLOUDFLARE_R2_ENDPOINT: ${CLOUDFLARE_R2_ENDPOINT}
+      CLOUDFLARE_R2_ACCOUNT_ID: ${CLOUDFLARE_R2_ACCOUNT_ID}
+
+      # Rails specific
+      RAILS_ENV: development
+      RAILS_MAX_THREADS: 5
+
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/rails
+      - gem_cache:/usr/local/bundle/gems
+      - node_modules:/rails/node_modules
+    networks:
+      - wubhub_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  gem_cache:
+  node_modules:
+
+networks:
+  wubhub_network:
+    driver: bridge

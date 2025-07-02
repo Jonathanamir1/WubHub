@@ -1,4 +1,3 @@
-# backend/config/environments/development.rb
 require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
@@ -27,23 +26,36 @@ Rails.application.configure do
     }
   else
     config.action_controller.perform_caching = false
-
     config.cache_store = :null_store
   end
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  # UPDATED: Use R2 for development if credentials are available, otherwise local
+  if ENV['CLOUDFLARE_R2_ACCESS_KEY_ID'].present?
+    config.active_storage.service = :development_r2
+  else
+    config.active_storage.service = :local
+  end
   
-  # URL generation settings
+  # URL generation settings 
   config.action_mailer.default_url_options = { host: 'localhost', port: 3000 }
   config.active_storage.default_url_options = { host: 'localhost', port: 3000 }
   
-  # Set Active Storage URLs to be proxied
+  # UPDATED: Allow direct uploads to R2
   config.active_storage.resolve_model_to_route = :rails_storage_proxy
+
+  # ADDED: CORS for frontend development
+  config.middleware.insert_before 0, Rack::Cors do
+    allow do
+      origins 'http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080'
+      resource '*', 
+        headers: :any, 
+        methods: [:get, :post, :patch, :put, :delete, :options, :head],
+        credentials: false
+    end
+  end
 
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
-
   config.action_mailer.perform_caching = false
 
   # Print deprecation notices to the Rails logger.
@@ -63,7 +75,6 @@ Rails.application.configure do
 
   # Highlight code that enqueued background job in logs.
   config.active_job.verbose_enqueue_logs = true
-
 
   # Raises error for missing translations.
   # config.i18n.raise_on_missing_translations = true

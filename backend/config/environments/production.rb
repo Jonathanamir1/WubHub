@@ -1,4 +1,3 @@
-# backend/config/environments/production.rb
 require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
@@ -30,16 +29,27 @@ Rails.application.configure do
   # config.action_dispatch.x_sendfile_header = "X-Sendfile" # for Apache
   # config.action_dispatch.x_sendfile_header = "X-Accel-Redirect" # for NGINX
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  # UPDATED: Use Cloudflare R2 for production
+  config.active_storage.service = :cloudflare_r2
   
   # URL settings for production
-  host = ENV.fetch('DEFAULT_URL_HOST', 'your-production-domain.com')
-  config.action_mailer.default_url_options = { host: host }
-  config.active_storage.default_url_options = { host: host }
+  host = ENV.fetch('DEFAULT_URL_HOST', 'wubhub.com')
+  config.action_mailer.default_url_options = { host: host, protocol: 'https' }
+  config.active_storage.default_url_options = { host: host, protocol: 'https' }
   
   # Set Active Storage URLs to be proxied
   config.active_storage.resolve_model_to_route = :rails_storage_proxy
+
+  # ADDED: CORS for production frontend
+  config.middleware.insert_before 0, Rack::Cors do
+    allow do
+      origins ENV.fetch('FRONTEND_URL', 'https://wubhub.com'), 'https://www.wubhub.com'
+      resource '*', 
+        headers: :any, 
+        methods: [:get, :post, :patch, :put, :delete, :options, :head],
+        credentials: false
+    end
+  end
 
   # Mount Action Cable outside main process or domain.
   # config.action_cable.mount_path = nil
