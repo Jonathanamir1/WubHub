@@ -1,17 +1,29 @@
+# WubHub Development Docker Compose Configuration
+# ==============================================
+
 services:
+  # PostgreSQL Database
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: wubhub_development
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./tmp/db_setup:/docker-entrypoint-initdb.d
     networks:
       - wubhub_network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis for background jobs and caching
   redis:
     image: redis:7-alpine
     ports:
@@ -20,41 +32,105 @@ services:
       - redis_data:/data
     networks:
       - wubhub_network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Rails Application
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     ports:
       - '3000:3000'
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgres://postgres:password@db:5432/wubhub_development
-      REDIS_URL: redis://redis:6379/0
+      # Override specific values for Docker networking
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
 
-      # Cloudflare R2 Environment Variables
+      # Rails configuration
+      RAILS_ENV: ${RAILS_ENV}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS}
+      JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+
+      # Cloudflare R2 Storage
       CLOUDFLARE_R2_ACCESS_KEY_ID: ${CLOUDFLARE_R2_ACCESS_KEY_ID}
       CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
       CLOUDFLARE_R2_BUCKET: ${CLOUDFLARE_R2_BUCKET}
       CLOUDFLARE_R2_ENDPOINT: ${CLOUDFLARE_R2_ENDPOINT}
       CLOUDFLARE_R2_ACCOUNT_ID: ${CLOUDFLARE_R2_ACCOUNT_ID}
 
-      # Rails specific
-      RAILS_ENV: development
-      RAILS_MAX_THREADS: 5
+      # Development specific
+      HOST: ${HOST}
+      PORT: ${PORT}
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      # Enable Rails development features
+      RAILS_DEVELOPMENT_HOSTS: 'localhost,0.0.0.0,web'
 
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
+      # Mount source code for live reloading
       - .:/rails
-      - gem_cache:/usr/local/bundle/gems
+      - /rails/tmp
+      - /rails/log
+      # Cache gems and node_modules for faster builds
+      - gem_cache:/usr/local/bundle
       - node_modules:/rails/node_modules
+      # Mount storage for local file uploads (if any)
+      - ./storage:/rails/storage
     networks:
       - wubhub_network
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # Optional: Rails console service for debugging
+  console:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      RAILS_ENV: ${RAILS_ENV}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/rails
+      - gem_cache:/usr/local/bundle
+    networks:
+      - wubhub_network
+    command: ['bundle', 'exec', 'rails', 'console']
+    stdin_open: true
+    tty: true
+    profiles:
+      - tools
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
   gem_cache:
+    driver: local
   node_modules:
+    driver: local
 
 networks:
   wubhub_network:

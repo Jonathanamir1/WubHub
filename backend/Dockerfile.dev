@@ -1,0 +1,115 @@
+# WubHub Development Dockerfile
+# ============================
+# Optimized for development workflow with live reloading
+
+# Use Ruby 3.1.2 to match your project
+ARG RUBY_VERSION=3.1.2
+FROM ruby:$RUBY_VERSION-slim
+
+# Set development environment
+ENV RAILS_ENV=development
+ENV BUNDLE_PATH=/usr/local/bundle
+ENV BUNDLE_WITHOUT=""
+
+# Rails app directory
+WORKDIR /rails
+
+# Install system dependencies needed for development
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+    # Essential packages
+    build-essential \
+    git \
+    curl \
+    # Database clients
+    libpq-dev \
+    postgresql-client \
+    # Redis client
+    redis-tools \
+    # Image processing
+    libvips \
+    # JavaScript runtime
+    nodejs \
+    npm \
+    # Development tools
+    vim \
+    less \
+    # SSL certificates for HTTPS requests
+    ca-certificates \
+    # Process management
+    procps \
+    && rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+# Create rails user for security (non-root)
+RUN useradd rails --create-home --shell /bin/bash && \
+    mkdir -p /usr/local/bundle && \
+    chown -R rails:rails /usr/local/bundle
+
+# Copy dependency files first for better Docker layer caching
+COPY --chown=rails:rails Gemfile Gemfile.lock ./
+
+# Switch to rails user
+USER rails
+
+# Install gems (including development and test groups)
+# Force bundle to install gems for the current platform
+RUN bundle config set --local force_ruby_platform true && \
+    bundle install
+
+# Copy application code
+COPY --chown=rails:rails . .
+
+# Create necessary directories with proper permissions
+RUN mkdir -p tmp/pids tmp/cache tmp/sockets log storage && \
+    chmod -R 755 tmp log storage
+
+# Skip bootsnap precompile for now to avoid platform issues
+# RUN bundle exec bootsnap precompile --gemfile app/ lib/
+
+# Create entrypoint script for development
+USER root
+RUN echo '#!/bin/bash' > /usr/local/bin/dev-entrypoint.sh && \
+    echo 'set -e' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Wait for database to be ready' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "🔄 Waiting for database..."' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'until pg_isready -h db -p 5432 -U postgres; do' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '  echo "Database is unavailable - sleeping"' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '  sleep 1' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'done' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "✅ Database is ready!"' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Wait for Redis to be ready' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "🔄 Waiting for Redis..."' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'until redis-cli -h redis ping; do' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '  echo "Redis is unavailable - sleeping"' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '  sleep 1' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'done' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "✅ Redis is ready!"' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Ensure database exists and is migrated' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "🔄 Preparing database..."' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'bundle exec rails db:prepare' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Clean up any server PIDs from previous runs' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'rm -f tmp/pids/server.pid' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Set proper permissions' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'chown -R rails:rails /rails' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "🚀 Starting WubHub development server..."' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'exec "$@"' >> /usr/local/bin/dev-entrypoint.sh && \
+    chmod +x /usr/local/bin/dev-entrypoint.sh && \
+    chown rails:rails /usr/local/bin/dev-entrypoint.sh
+
+# Switch back to rails user
+USER rails
+
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/dev-entrypoint.sh"]
+
+# Expose port 3000
+EXPOSE 3000
+
+# Default command for development server with live reloading
+CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0", "-p", "3000"]
