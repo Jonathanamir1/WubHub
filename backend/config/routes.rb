@@ -67,6 +67,8 @@ Rails.application.routes.draw do
 
       # Standalone role management
       resources :roles, only: [:show, :update, :destroy]
+
+      get 'health', to: 'health#show'
     end
   end
 end
