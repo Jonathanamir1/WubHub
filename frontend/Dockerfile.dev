@@ -1,0 +1,81 @@
+# Use Node.js 20 LTS to match modern development
+ARG NODE_VERSION=20.18
+FROM node:$NODE_VERSION-alpine
+
+# Set development environment
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# App directory
+WORKDIR /app
+
+# Install system dependencies needed for development
+RUN apk add --no-cache \
+    # Essential packages
+    bash \
+    git \
+    curl \
+    # Development tools
+    vim \
+    less \
+    # Process management
+    procps \
+    && rm -rf /var/cache/apk/*
+
+# Create nextjs user for security (non-root)
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 -G nodejs && \
+    mkdir -p /app && \
+    chown -R nextjs:nodejs /app
+
+# Copy dependency files first for better Docker layer caching
+COPY --chown=nextjs:nodejs package*.json ./
+
+# Switch to nextjs user
+USER nextjs
+
+# Install dependencies (including development dependencies)
+RUN npm ci
+
+# Copy application code
+COPY --chown=nextjs:nodejs . .
+
+# Create necessary directories with proper permissions
+RUN mkdir -p .next tmp node_modules/.cache && \
+    chmod -R 755 .next tmp
+
+# Create entrypoint script for development
+USER root
+RUN echo '#!/bin/bash' > /usr/local/bin/dev-entrypoint.sh && \
+    echo 'set -e' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Wait for backend API to be ready' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "🔄 Waiting for backend API..."' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'while ! curl -f http://backend:3000/api/v1/health 2>/dev/null; do' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '  echo "Backend API is unavailable - sleeping"' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '  sleep 3' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'done' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "✅ Backend API is ready!"' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Clean up any Next.js cache from previous runs' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'rm -rf .next/cache' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '# Set proper permissions' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'chown -R nextjs:nodejs /app' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo '' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'echo "🚀 Starting WubHub frontend development server..."' >> /usr/local/bin/dev-entrypoint.sh && \
+    echo 'exec "$@"' >> /usr/local/bin/dev-entrypoint.sh && \
+    chmod +x /usr/local/bin/dev-entrypoint.sh && \
+    chown nextjs:nodejs /usr/local/bin/dev-entrypoint.sh
+
+# Switch back to nextjs user
+USER nextjs
+
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/dev-entrypoint.sh"]
+
+# Expose port 3001
+EXPOSE 3001
+
+# Default command for development server with Turbopack
+CMD ["npm", "run", "dev", "--", "--port", "3001", "--hostname", "0.0.0.0"]

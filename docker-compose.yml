@@ -1,0 +1,125 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: wubhub_development
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wubhub_network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d wubhub_development']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for background jobs and caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - wubhub_network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Rails Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - '3000:3000'
+    environment:
+      # Database connection
+      DATABASE_URL: postgresql://postgres:password@db:5432/wubhub_development
+      REDIS_URL: redis://redis:6379/0
+
+      # Rails configuration
+      RAILS_ENV: development
+      RAILS_MAX_THREADS: 5
+
+      # CORS configuration
+      ALLOWED_ORIGINS: http://localhost:3001,http://frontend:3001
+
+      # Development settings
+      RAILS_DEVELOPMENT_HOSTS: localhost,0.0.0.0,backend,frontend
+
+      # Load other environment variables from backend/.env
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Mount source code for live reloading
+      - ./backend:/rails
+      # Preserve log and tmp directories
+      - backend_tmp:/rails/tmp
+      - backend_log:/rails/log
+      # Cache gems for faster builds
+      - gem_cache:/usr/local/bundle
+    networks:
+      - wubhub_network
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+      NEXT_TELEMETRY_DISABLED: 1
+    depends_on:
+      - backend
+    volumes:
+      # Mount source code for live reloading
+      - ./frontend:/app
+      # Preserve Next.js cache and node_modules
+      - frontend_next:/app/.next
+      - frontend_node_modules:/app/node_modules
+    networks:
+      - wubhub_network
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  gem_cache:
+    driver: local
+  backend_tmp:
+    driver: local
+  backend_log:
+    driver: local
+  frontend_node_modules:
+    driver: local
+  frontend_next:
+    driver: local
+
+networks:
+  wubhub_network:
+    driver: bridge
