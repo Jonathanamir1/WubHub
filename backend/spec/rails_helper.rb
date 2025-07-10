@@ -1,7 +1,11 @@
-# spec/rails_helper.rb - Updated for development testing
+# spec/rails_helper.rb
+# FIXED: Proper environment setup for tests
 
 require 'spec_helper'
-ENV['RAILS_ENV'] ||= 'development'  # Force development environment
+
+# FIXED: Use proper test environment by default
+ENV['RAILS_ENV'] ||= 'test'
+
 require_relative '../config/environment'
 
 # Prevent database truncation if we abort a test early.
@@ -30,7 +34,7 @@ end
 
 RSpec.configure do |config|
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
-  config.fixture_path = "#{::Rails.root}/spec/fixtures"
+  config.fixture_paths = ["#{::Rails.root}/spec/fixtures"]
 
   # If you're not using ActiveRecord, or you'd prefer not to run each of your
   # examples within a transaction, remove the following line or assign false
@@ -63,15 +67,15 @@ RSpec.configure do |config|
   # Include Factory Bot methods
   config.include FactoryBot::Syntax::Methods
 
-  # Database Cleaner configuration for development testing
+  # FIXED: Proper test environment setup
   config.before(:suite) do
-    # Warn about development testing
-    puts "\n🚨 Running tests in DEVELOPMENT environment"
-    puts "🔧 Using development database and R2 configuration"
-    puts "💾 Database: #{Rails.configuration.database_configuration[Rails.env]['database']}"
+    puts "\n🧪 Running tests in #{Rails.env.upcase} environment"
+    puts "💾 Database: #{ActiveRecord::Base.connection.current_database}"
     puts "📤 Storage: #{ActiveStorage::Blob.service.class.name}"
     puts "=" * 60
     
+    # FIXED: Allow remote URL cleaning in tests
+    DatabaseCleaner.allow_remote_database_url = true
     DatabaseCleaner.clean_with(:truncation)
   end
 
@@ -80,31 +84,7 @@ RSpec.configure do |config|
     DatabaseCleaner.start
   end
 
-  config.after(:each) do |example|
-    # Clean up any uploaded files after each test
-    if defined?(ActiveStorage) && ActiveStorage::Blob.service.respond_to?(:bucket)
-      cleanup_test_files_from_r2
-    end
-    
+  config.after(:each) do
     DatabaseCleaner.clean
-  end
-
-  private
-
-  def cleanup_test_files_from_r2
-    # Only clean up files that were created during tests
-    # Look for blobs created in the last few minutes during test runs
-    recent_blobs = ActiveStorage::Blob.where('created_at > ?', 5.minutes.ago)
-    
-    recent_blobs.each do |blob|
-      # Only delete test files (files with 'test' in the key/filename)
-      if blob.key&.include?('test') || blob.filename.to_s.include?('test')
-        begin
-          blob.purge_later  # Use background job to clean up
-        rescue => e
-          Rails.logger.debug "Could not clean up test blob #{blob.id}: #{e.message}"
-        end
-      end
-    end
   end
 end

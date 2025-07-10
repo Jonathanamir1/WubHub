@@ -58,7 +58,10 @@ class ApplicationController < ActionController::API
   end
 
   def jwt_secret
+    # Try multiple sources for JWT secret
     Rails.application.credentials.jwt_secret || 
-      (raise "JWT secret not configured. Please add jwt_secret to Rails credentials.")
+    ENV['JWT_SECRET'] || 
+    (Rails.env.test? || Rails.env.development? ? 'test_jwt_secret_for_development_only' : nil) ||
+    (raise "JWT secret not configured. Please add jwt_secret to Rails credentials or set JWT_SECRET environment variable.")
   end
 end

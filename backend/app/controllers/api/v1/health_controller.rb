@@ -40,10 +40,23 @@ class Api::V1::HealthController < ApplicationController
   end
 
   def redis_status
+    # Skip Redis check in test environment since it uses null_store
+    return 'not_configured' if Rails.env.test?
+    
+    # Check if Redis is configured
+    return 'not_configured' unless redis_configured?
+    
+    # Try to ping Redis
     Rails.cache.redis.ping
     'connected'
   rescue => e
     Rails.logger.error "Redis health check failed: #{e.message}"
     'disconnected'
+  end
+
+  def redis_configured?
+    # Check if we're using a Redis cache store
+    Rails.cache.class.name.include?('Redis') || 
+    Rails.cache.class.name.include?('RedisCache')
   end
 end

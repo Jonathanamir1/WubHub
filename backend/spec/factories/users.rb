@@ -1,9 +1,10 @@
 FactoryBot.define do
   factory :user do
-    sequence(:email) { |n| "user#{n}@example.com" }
     sequence(:name) { |n| "User #{n}" }
+    sequence(:email) { |n| "user#{n}@example.com" }
+    password { 'password123' }
+    password_confirmation { 'password123' }
     bio { "A test user bio" }
-    password { "password123" }
-    password_confirmation { "password123" }
+    onboarding_step { 'not_started' }
   end
 end

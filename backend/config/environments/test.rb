@@ -61,4 +61,12 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions
   config.action_controller.raise_on_missing_callback_actions = true
+  
+  # FIX: Allow test hosts for RSpec requests
+  # This fixes the "Blocked hosts: www.example.com" error
+  config.hosts << "www.example.com"
+  config.hosts << "example.com"
+  config.hosts << "test.host"
+  config.hosts << "localhost"
+  config.hosts << "127.0.0.1"
 end

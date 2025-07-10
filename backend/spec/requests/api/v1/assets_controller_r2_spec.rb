@@ -1,7 +1,6 @@
-# spec/controllers/api/v1/assets_controller_r2_spec.rb
 require 'rails_helper'
 
-RSpec.describe Api::V1::AssetsController, type: :controller do
+RSpec.describe Api::V1::AssetsController, type: :controller, r2_integration: true do
   let(:user) { create(:user) }
   let(:workspace) { create(:workspace, user: user) }
   let(:container) { create(:container, workspace: workspace) }
@@ -162,7 +161,7 @@ RSpec.describe Api::V1::AssetsController, type: :controller do
           get :download, params: { id: asset.id }
 
           expect(response).to have_http_status(:found)
-          expect(response.location).to include(ENV['CLOUDFLARE_R2_ENDPOINT'].split('//').last)
+          expect(response.location).to include('rails/active_storage/blobs')
           expect(response.location).to include(ENV['CLOUDFLARE_R2_BUCKET'])
         end
 

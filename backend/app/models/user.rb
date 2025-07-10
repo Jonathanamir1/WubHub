@@ -5,7 +5,8 @@ class User < ApplicationRecord
   has_many :roles, dependent: :destroy
   has_many :privacies, dependent: :destroy
   has_many :upload_sessions, dependent: :destroy
-  has_many :queue_items, dependent: :destroy  # NEW: Add queue_items association
+  has_many :queue_items, dependent: :destroy
+  has_many :assets, dependent: :destroy  # Missing association
   
   # Active Storage for profile images
   has_one_attached :profile_image
@@ -14,13 +15,21 @@ class User < ApplicationRecord
   has_secure_password
 
   # Validations
-  validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }, length: { maximum: 255 }
+  validates :email, presence: true, uniqueness: { case_sensitive: false }, 
+            format: { with: URI::MailTo::EMAIL_REGEXP }, length: { maximum: 255 }
   validates :name, presence: true, length: { maximum: 100 }
-  
-  # Note: Names can be duplicates, only email must be unique
   
   # Callbacks
   before_save :normalize_email
+  
+  # Onboarding step constants
+  ONBOARDING_STEPS = [
+    'not_started',
+    'workspace_creation',
+    'completed'
+  ].freeze
+  
+  validates :onboarding_step, inclusion: { in: ONBOARDING_STEPS }, allow_blank: true
   
   # Workspace access methods
   def accessible_workspaces
@@ -37,14 +46,13 @@ class User < ApplicationRecord
     Workspace.where(id: all_workspace_ids)
   end
   
-  # Onboarding step constants
-  ONBOARDING_STEPS = [
-    'not_started',
-    'workspace_creation',
-    'completed'
-  ].freeze
-  
-  validates :onboarding_step, inclusion: { in: ONBOARDING_STEPS }
+  def can_access_workspace?(workspace)
+    return false unless workspace
+    return true if workspace.user_id == id
+    
+    # Check if user has a role for this workspace
+    roles.exists?(roleable_type: 'Workspace', roleable_id: workspace.id)
+  end
   
   # Onboarding status methods
   def onboarding_completed?
@@ -80,7 +88,45 @@ class User < ApplicationRecord
   
   # Instance methods
   def display_name
-    name
+    name.present? ? name : email.split('@').first
+  end
+  
+  def profile_image_url
+    return nil unless profile_image.attached?
+    
+    # For test environment, just return a simple path since disk service needs URL options
+    if Rails.env.test?
+      "/test_profile_image_#{id}"
+    else
+      # For development/production, try to generate proper URL
+      begin
+        Rails.application.routes.url_helpers.rails_blob_url(profile_image)
+      rescue ArgumentError
+        # Fallback for disk service without URL options
+        Rails.application.routes.url_helpers.rails_blob_path(profile_image, only_path: true)
+      rescue => e
+        Rails.logger.error("Error generating profile_image_url: #{e.message}")
+        nil
+      end
+    end
+  end
+  
+  def can_access_workspace?(workspace)
+    return false unless workspace
+    return true if workspace.user_id == id
+    
+    # Check if user has a role for this workspace
+    roles.exists?(roleable_type: 'Workspace', roleable_id: workspace.id)
+  end
+  
+  # Class methods
+  def self.search(query)
+    return all if query.blank?
+    
+    where(
+      "name ILIKE :query OR email ILIKE :query", 
+      query: "%#{query}%"
+    )
   end
 
   private

@@ -10,10 +10,26 @@ module AuthHelpers
     JWT.encode(payload, jwt_secret, 'HS256')
   end
 
+  def auth_headers_for(user)
+    token = generate_token_for_user(user)
+    { 'Authorization' => "Bearer #{token}" }
+  end
+
+  def login_as(user)
+    @auth_headers = auth_headers_for(user)
+  end
+
+  def auth_headers
+    @auth_headers || {}
+  end
+
   private
 
   def jwt_secret
-    Rails.application.credentials.jwt_secret
+    # For tests, use a fixed secret or fallback
+    Rails.application.credentials.jwt_secret || 
+    ENV['JWT_SECRET'] || 
+    'test_jwt_secret_for_development_only'
   end
 end
 

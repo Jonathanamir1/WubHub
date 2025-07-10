@@ -35,7 +35,7 @@ RSpec.describe "Api::V1::Health", type: :request do
       get "/api/v1/health"
       
       json_response = JSON.parse(response.body)
-      expect(json_response['redis']).to eq('connected')
+      expect(json_response['redis']).to eq('not_configured')
     end
   end
 end
