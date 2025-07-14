@@ -1,6 +1,7 @@
+// app/layout.tsx
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { HeroUIProvider } from '@heroui/react';
+import { Providers } from './lib/providers';
 import './globals.css';
 
 const geistSans = Geist({
@@ -29,7 +30,7 @@ export default function RootLayout({
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 			>
-				<HeroUIProvider>{children}</HeroUIProvider>
+				<Providers>{children}</Providers>
 			</body>
 		</html>
 	);
