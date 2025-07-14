@@ -12,6 +12,8 @@ Rails.application.routes.draw do
       post 'auth/register', to: 'auth#register'
       get 'auth/current', to: 'auth#current'
 
+      post 'auth/google', to: 'auth#google'
+      
       # User management routes
       resources :users, only: [:index, :show, :update, :destroy]
 

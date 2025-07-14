@@ -24,6 +24,7 @@ interface AuthContextType {
 		password: string,
 		passwordConfirmation: string
 	) => Promise<void>;
+	signInWithGoogle: () => Promise<void>;
 	logout: () => Promise<void>;
 	checkAuth: () => Promise<boolean>;
 }
@@ -114,12 +115,43 @@ export function AuthProvider(props: AuthProviderProps) {
 		}
 	};
 
+	const signInWithGoogle = async (): Promise<void> => {
+		try {
+			console.log('🔐 Starting Google sign-in...');
+			const response = await authService.signInWithGoogle();
+
+			Cookies.set('auth_token', response.token, {
+				expires: 7,
+				secure: process.env.NODE_ENV === 'production',
+				sameSite: 'lax',
+			});
+
+			setUser(response.user);
+			console.log('✅ Google sign-in successful');
+		} catch (error) {
+			console.error('❌ Google sign-in error:', error);
+			if (error instanceof ApiError) {
+				throw error;
+			}
+			throw new Error('Google sign-in failed. Please try again.');
+		}
+	};
+
 	const logout = async (): Promise<void> => {
 		try {
 			await authService.logout();
 		} catch (error) {
 			console.warn('Server logout failed:', error);
 		} finally {
+			// Import Google auth service and sign out
+			import('../lib/googleAuth')
+				.then(({ googleAuthService }) => {
+					googleAuthService.signOut();
+				})
+				.catch(() => {
+					// Ignore Google sign-out errors
+				});
+
 			Cookies.remove('auth_token');
 			setUser(null);
 			window.location.href = '/auth/login';
@@ -137,6 +169,7 @@ export function AuthProvider(props: AuthProviderProps) {
 		isAuthenticated,
 		login,
 		register,
+		signInWithGoogle,
 		logout,
 		checkAuth,
 	};

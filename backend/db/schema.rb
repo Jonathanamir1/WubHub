@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_06_27_115856) do
+ActiveRecord::Schema[7.1].define(version: 2025_07_14_125826) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -169,7 +169,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_115856) do
     t.index ["user_id"], name: "index_upload_sessions_on_user_id"
     t.index ["virus_scan_completed_at"], name: "index_upload_sessions_on_virus_scan_completed_at"
     t.index ["virus_scan_queued_at"], name: "index_upload_sessions_on_virus_scan_queued_at"
-    t.index ["workspace_id", "container_id", "filename"], name: "index_upload_sessions_unique_filename_per_location", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'uploading'::character varying, 'assembling'::character varying])::text[]))"
+    t.index ["workspace_id", "container_id", "filename"], name: "index_upload_sessions_unique_filename_per_location", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('uploading'::character varying)::text, ('assembling'::character varying)::text]))"
     t.index ["workspace_id", "status"], name: "index_upload_sessions_on_workspace_id_and_status"
     t.index ["workspace_id"], name: "index_upload_sessions_on_workspace_id"
   end
@@ -183,7 +183,9 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_115856) do
     t.datetime "onboarding_completed_at"
     t.string "onboarding_step", default: "not_started"
     t.string "name", null: false
+    t.string "google_id"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["google_id"], name: "index_users_on_google_id", unique: true
     t.index ["onboarding_completed_at"], name: "index_users_on_onboarding_completed_at"
     t.index ["onboarding_step"], name: "index_users_on_onboarding_step"
   end

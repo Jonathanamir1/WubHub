@@ -163,6 +163,36 @@ class AuthService {
 			return false;
 		}
 	}
+
+	/**
+	 * Sign in with Google
+	 */
+	async signInWithGoogle(): Promise<AuthResponse> {
+		try {
+			console.log('🔧 Auth Service: Starting Google sign-in...');
+
+			// Import Google auth service
+			const { googleAuthService } = await import('./googleAuth');
+
+			// Get Google token
+			const token = await googleAuthService.signInWithPopup();
+			console.log('🔧 Auth Service: Received Google token');
+
+			// Send to backend (changed from id_token to token)
+			const response = await api.postPublic<AuthResponse>('/auth/google', {
+				id_token: token, // Backend still expects 'id_token' parameter
+			});
+
+			console.log('🔧 Auth Service: Backend response:', response);
+			return response;
+		} catch (error) {
+			console.error('🔧 Auth Service: Google sign-in error:', error);
+			if (error instanceof ApiError) {
+				throw error;
+			}
+			throw new ApiError('Google sign-in failed. Please try again.');
+		}
+	}
 }
 
 // Create and export auth service instance
