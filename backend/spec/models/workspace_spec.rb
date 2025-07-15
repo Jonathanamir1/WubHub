@@ -1,3 +1,4 @@
+# spec/models/workspace_spec.rb
 require 'rails_helper'
 
 RSpec.describe Workspace, type: :model do
@@ -8,19 +9,80 @@ RSpec.describe Workspace, type: :model do
       expect(workspace.errors[:name]).to include("can't be blank")
     end
 
-
     it 'is valid with all required attributes' do
       workspace = build(:workspace)
       expect(workspace).to be_valid
+    end
+
+    it 'validates workspace_type inclusion with simplified types' do
+      valid_types = ['project_based', 'client_based', 'library']
+      
+      valid_types.each do |type|
+        workspace = build(:workspace, workspace_type: type)
+        expect(workspace).to be_valid, "Expected #{type} to be valid"
+      end
+    end
+
+    it 'rejects invalid workspace_types' do
+      invalid_types = ['songwriter', 'producer', 'mixing_engineer', 'mastering_engineer', 'artist', 'other', 'invalid']
+      
+      invalid_types.each do |type|
+        workspace = build(:workspace, workspace_type: type)
+        expect(workspace).not_to be_valid, "Expected #{type} to be invalid"
+        expect(workspace.errors[:workspace_type]).to include("#{type} is not a valid workspace type")
+      end
+    end
+
+    it 'requires workspace_type to be present' do
+      workspace = build(:workspace, workspace_type: nil)
+      expect(workspace).not_to be_valid
+      expect(workspace.errors[:workspace_type]).to include("can't be blank")
+    end
+
+    it 'requires workspace_type when empty string' do
+      workspace = build(:workspace, workspace_type: '')
+      expect(workspace).not_to be_valid
+      expect(workspace.errors[:workspace_type]).to include("can't be blank")
+    end
+
+    it 'validates description length' do
+      workspace = build(:workspace, description: 'a' * 1001)
+      expect(workspace).not_to be_valid
+      expect(workspace.errors[:description]).to include('is too long (maximum is 1000 characters)')
     end
   end
 
   describe 'associations' do
     it { should belong_to(:user) }
+    it { should have_many(:containers).dependent(:destroy) }
+    it { should have_many(:assets).dependent(:destroy) }
+    it { should have_many(:upload_sessions).dependent(:destroy) }
+    it { should have_many(:queue_items).dependent(:destroy) }
+    it { should have_one(:privacy).dependent(:destroy) }
   end
 
+  describe 'workspace type methods' do
+    it 'identifies project_based workspaces' do
+      workspace = create(:workspace, workspace_type: 'project_based')
+      expect(workspace.project_based?).to be true
+      expect(workspace.client_based?).to be false
+      expect(workspace.library?).to be false
+    end
 
+    it 'identifies client_based workspaces' do
+      workspace = create(:workspace, workspace_type: 'client_based')
+      expect(workspace.client_based?).to be true
+      expect(workspace.project_based?).to be false
+      expect(workspace.library?).to be false
+    end
 
+    it 'identifies library workspaces' do
+      workspace = create(:workspace, workspace_type: 'library')
+      expect(workspace.library?).to be true
+      expect(workspace.project_based?).to be false
+      expect(workspace.client_based?).to be false
+    end
+  end
 
   describe 'workspace ownership' do
     it 'belongs to the user who created it' do
@@ -78,6 +140,7 @@ RSpec.describe Workspace, type: :model do
       expect(privacy.privatable).to eq(workspace)
     end
   end
+
   describe 'privatable type validation' do
     it 'only allows specific model types to have privacy' do
       user = create(:user)
@@ -87,17 +150,9 @@ RSpec.describe Workspace, type: :model do
       expect(invalid_privacy).not_to be_valid
       expect(invalid_privacy.errors[:privatable_type]).to include('is not included in the list')
     end
-    
-    # it 'allows valid model types to have privacy' do
-    #   workspace = create(:workspace)
-    #   valid_privacy = Privacy.new(user: create(:user), privatable: workspace, level: 'private')
-    #   expect(valid_privacy).to be_valid
-    # end
   end
 
   describe "workspace collaboration edge cases" do
-
-
     it "handles workspace name conflicts across users" do
       user1 = create(:user)
       user2 = create(:user)
@@ -112,4 +167,3 @@ RSpec.describe Workspace, type: :model do
     end
   end
 end
-

@@ -3,7 +3,7 @@ require 'rails_helper'
 
 RSpec.describe "Api::V1::Assets", type: :request do
   let(:user) { create(:user) }
-  let(:workspace) { create(:workspace, user: user, workspace_type: 'producer') }
+  let(:workspace) { create(:workspace, user: user, workspace_type: 'client_based') }
   let(:container) { create(:container, workspace: workspace, name: "Beats") }
   let(:token) { generate_token_for_user(user) }
   let(:headers) { { 'Authorization' => "Bearer #{token}" } }
@@ -83,7 +83,7 @@ RSpec.describe "Api::V1::Assets", type: :request do
 
     context "when user doesn't have access to workspace" do
       let(:other_user) { create(:user) }
-      let(:other_workspace) { create(:workspace, user: other_user, workspace_type: 'songwriter') }
+      let(:other_workspace) { create(:workspace, user: other_user, workspace_type: 'client_based') }
 
       it "returns not found" do
         get "/api/v1/workspaces/#{other_workspace.id}/assets", headers: headers
@@ -358,17 +358,17 @@ RSpec.describe "Api::V1::Assets", type: :request do
 
   describe "template-specific asset operations" do
     context "with different workspace templates" do
-      it "handles producer workspace assets" do
-        producer_workspace = create(:workspace, user: user, workspace_type: 'producer')
-        asset = create(:asset, workspace: producer_workspace, user: user, filename: "stem_mix.wav")
+      it "handles client_based workspace assets" do
+        client_based_workspace = create(:workspace, user: user, workspace_type: 'client_based')
+        asset = create(:asset, workspace: client_based_workspace, user: user, filename: "stem_mix.wav")
         
         get "/api/v1/assets/#{asset.id}", headers: headers
         expect(response).to have_http_status(:ok)
       end
 
-      it "handles songwriter workspace assets" do
-        songwriter_workspace = create(:workspace, user: user, workspace_type: 'songwriter')
-        asset = create(:asset, workspace: songwriter_workspace, user: user, filename: "demo_recording.mp3")
+      it "handles client_based workspace assets" do
+        client_based = create(:workspace, user: user, workspace_type: 'client_based')
+        asset = create(:asset, workspace: client_based, user: user, filename: "demo_recording.mp3")
         
         get "/api/v1/assets/#{asset.id}", headers: headers
         expect(response).to have_http_status(:ok)

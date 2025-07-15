@@ -55,7 +55,8 @@ RSpec.describe "Api::V1::Workspaces", type: :request do
         workspace_params = {
           workspace: {
             name: "New Music Studio",
-            description: "My awesome studio workspace"
+            description: "My awesome studio workspace",
+            workspace_type: "client_based"
           }
         }
 

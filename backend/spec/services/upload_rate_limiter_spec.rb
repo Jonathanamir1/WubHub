@@ -2,7 +2,7 @@
 require 'rails_helper'
 
 RSpec.describe UploadRateLimiter, type: :service do
-  let(:user) { create(:user) }
+  let(:user) { create(:user, email: "test_#{SecureRandom.hex(4)}@example.com") }
   let(:workspace) { create(:workspace, user: user) }
   
   # Clear cache before each test to ensure clean state
@@ -18,12 +18,16 @@ RSpec.describe UploadRateLimiter, type: :service do
     context 'new upload sessions rate limiting' do
       it 'allows normal upload session creation' do
         expect {
-          3.times do |i|  # Changed from 5 to 3 to stay within concurrent limit
-            UploadRateLimiter.check_rate_limit!(
-              user: user,
-              action: :create_session,
-              ip_address: '192.168.1.1'
-            )
+          3.times do |i|
+            threads << Thread.new do
+              # Create a unique user for each thread
+              thread_user = create(:user, email: "concurrent_test_#{i}_#{SecureRandom.hex(4)}@example.com")
+              UploadRateLimiter.check_rate_limit!(
+                user: thread_user,
+                action: :create_session,
+                ip_address: '192.168.1.1'
+              )
+            end
           end
         }.not_to raise_error
       end

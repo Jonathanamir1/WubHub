@@ -104,7 +104,8 @@ RSpec.describe "API Versioning", type: :request do
   describe "content type handling" do
     it "accepts JSON content type" do
       workspace_params = {
-        workspace: { name: "Test Workspace" }
+        workspace: { name: "Test Workspace" },
+        workspace_type: "project_based"
       }
       
       post "/api/v1/workspaces", 
@@ -122,6 +123,7 @@ RSpec.describe "API Versioning", type: :request do
       workspace_params = {
         workspace: {
           name: "Test Workspace",
+          workspace_type: "project_based",
           deprecated_field: "should_be_ignored"  # This field doesn't exist
         }
       }

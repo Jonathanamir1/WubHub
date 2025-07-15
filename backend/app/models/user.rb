@@ -1,4 +1,3 @@
-# app/models/user.rb
 class User < ApplicationRecord
   # Associations
   has_many :workspaces, dependent: :destroy
@@ -6,7 +5,7 @@ class User < ApplicationRecord
   has_many :privacies, dependent: :destroy
   has_many :upload_sessions, dependent: :destroy
   has_many :queue_items, dependent: :destroy
-  has_many :assets, dependent: :destroy  # Missing association
+  has_many :assets, dependent: :destroy
   
   # Active Storage for profile images
   has_one_attached :profile_image
@@ -68,6 +67,11 @@ class User < ApplicationRecord
     onboarding_step || 'not_started'
   end
   
+  def can_complete_onboarding?
+    # User can complete onboarding if they have at least one workspace
+    workspaces.exists?
+  end
+  
   def start_onboarding!
     update!(onboarding_step: 'workspace_creation')
   end
@@ -86,6 +90,13 @@ class User < ApplicationRecord
     )
   end
   
+  # Class methods
+  def self.search(query)
+    return all if query.blank?
+    
+    where("name ILIKE ? OR email ILIKE ?", "%#{query}%", "%#{query}%")
+  end
+  
   # Instance methods
   def display_name
     name.present? ? name : email.split('@').first
@@ -96,37 +107,10 @@ class User < ApplicationRecord
     
     # For test environment, just return a simple path since disk service needs URL options
     if Rails.env.test?
-      "/test_profile_image_#{id}"
+      Rails.application.routes.url_helpers.rails_blob_path(profile_image, only_path: true)
     else
-      # For development/production, try to generate proper URL
-      begin
-        Rails.application.routes.url_helpers.rails_blob_url(profile_image)
-      rescue ArgumentError
-        # Fallback for disk service without URL options
-        Rails.application.routes.url_helpers.rails_blob_path(profile_image, only_path: true)
-      rescue => e
-        Rails.logger.error("Error generating profile_image_url: #{e.message}")
-        nil
-      end
+      profile_image.url
     end
-  end
-  
-  def can_access_workspace?(workspace)
-    return false unless workspace
-    return true if workspace.user_id == id
-    
-    # Check if user has a role for this workspace
-    roles.exists?(roleable_type: 'Workspace', roleable_id: workspace.id)
-  end
-  
-  # Class methods
-  def self.search(query)
-    return all if query.blank?
-    
-    where(
-      "name ILIKE :query OR email ILIKE :query", 
-      query: "%#{query}%"
-    )
   end
 
   private

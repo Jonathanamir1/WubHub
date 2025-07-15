@@ -294,7 +294,8 @@ RSpec.describe "Api::V1::Onboarding", type: :request do
         workspace_params = {
           workspace: {
             name: "My First Studio",
-            description: "Created during onboarding"
+            description: "Created during onboarding",
+            workspace_type: "project_based"
           }
         }
         

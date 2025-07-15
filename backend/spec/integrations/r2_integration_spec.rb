@@ -1,7 +1,7 @@
 # spec/models/asset_r2_integration_spec.rb
 require 'rails_helper'
 
-RSpec.describe Asset, type: :model,r2_integration: true  do
+RSpec.describe Asset, type: :model, development: true  do
   let(:user) { create(:user) }
   let(:workspace) { create(:workspace, user: user) }
   let(:container) { create(:container, workspace: workspace) }

@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe Api::V1::AssetsController, type: :controller, r2_integration: true do
+RSpec.describe Api::V1::AssetsController, type: :controller, development: true do
   let(:user) { create(:user) }
   let(:workspace) { create(:workspace, user: user) }
   let(:container) { create(:container, workspace: workspace) }

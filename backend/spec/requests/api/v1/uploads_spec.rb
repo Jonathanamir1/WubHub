@@ -773,7 +773,7 @@ RSpec.describe "Api::V1::Uploads", type: :request do
 
   describe "workspace template integration" do
     it "works with producer workspace template" do
-      producer_workspace = create(:workspace, user: user, workspace_type: 'producer')
+      client_workspace = create(:workspace, user: user, workspace_type: 'client_based')
       
       upload_params = {
         upload_session: {
@@ -783,14 +783,14 @@ RSpec.describe "Api::V1::Uploads", type: :request do
         }
       }
 
-      post "/api/v1/workspaces/#{producer_workspace.id}/uploads", 
+      post "/api/v1/workspaces/#{client_workspace.id}/uploads", 
            params: upload_params, headers: headers
 
       expect(response).to have_http_status(:created)
     end
 
-    it "works with songwriter workspace template" do
-      songwriter_workspace = create(:workspace, user: user, workspace_type: 'songwriter')
+    it "works with project workspace template" do
+      project_workspace = create(:workspace, user: user, workspace_type: 'project_based')
       
       upload_params = {
         upload_session: {
@@ -800,7 +800,7 @@ RSpec.describe "Api::V1::Uploads", type: :request do
         }
       }
 
-      post "/api/v1/workspaces/#{songwriter_workspace.id}/uploads", 
+      post "/api/v1/workspaces/#{project_workspace.id}/uploads", 
            params: upload_params, headers: headers
 
       expect(response).to have_http_status(:created)
