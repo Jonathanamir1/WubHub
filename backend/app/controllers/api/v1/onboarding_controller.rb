@@ -12,6 +12,14 @@ class Api::V1::OnboardingController < ApplicationController
 
   # POST /api/v1/onboarding/start
   def start
+    # Only allow starting if user hasn't completed onboarding
+    if current_user.onboarding_completed?
+      return render json: {
+        error: 'Onboarding already completed. Use reset endpoint to restart.',
+        current_step: current_user.current_onboarding_step
+      }, status: :unprocessable_entity
+    end
+
     current_user.start_onboarding!
     render json: { 
       message: 'Onboarding started',
@@ -43,23 +51,14 @@ class Api::V1::OnboardingController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Create workspace with transaction to ensure consistency
-    workspace = nil
-    containers_created = []
-
+    # Create workspace
     begin
-      ActiveRecord::Base.transaction do
-        # Create the workspace
-        workspace = current_user.workspaces.create!(workspace_params)
-        
-        # Generate template containers based on workspace type
-        containers_created = WorkspaceTemplateService.new(workspace).create_template_structure!
-        
-        # Auto-complete onboarding since they successfully created their first workspace
-        current_user.complete_onboarding!
-      end
+      workspace = current_user.workspaces.create!(workspace_params)
+      
+      # Auto-complete onboarding since they successfully created their first workspace
+      current_user.complete_onboarding!
 
-      # Return success response with workspace and container details
+      # Return success response with workspace details
       render json: {
         message: 'First workspace created successfully',
         workspace: {
@@ -67,15 +66,10 @@ class Api::V1::OnboardingController < ApplicationController
           name: workspace.name,
           description: workspace.description,
           workspace_type: workspace.workspace_type,
+          workspace_type_display: workspace.workspace_type_display,
+          workspace_type_description: workspace.workspace_type_description,
           created_at: workspace.created_at
         },
-        containers_created: containers_created.map do |container|
-          {
-            id: container.id,
-            name: container.name,
-            path: container.path
-          }
-        end,
         current_step: current_user.current_onboarding_step,
         onboarding_completed: current_user.onboarding_completed?
       }, status: :created

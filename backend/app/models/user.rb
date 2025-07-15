@@ -97,7 +97,7 @@ class User < ApplicationRecord
   def reset_onboarding!
     update!(
       onboarding_step: 'not_started',
-      onboarding_completed_at: nil
+      onboarding_completed_at: nil  
     )
   end
   
