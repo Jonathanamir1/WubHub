@@ -82,6 +82,17 @@ class User < ApplicationRecord
       onboarding_completed_at: Time.current
     )
   end
+
+  def can_create_first_workspace?
+  # User can create their first workspace if they're in workspace_creation step
+  # or workspace_type_selection step (we removed this step but keeping for flexibility)
+  onboarding_step.in?(['workspace_creation']) && !onboarding_completed?
+  end
+
+  # Also, let's add a helper to check if this would be their first workspace
+  def creating_first_workspace?
+    workspaces.count == 0
+  end
   
   def reset_onboarding!
     update!(

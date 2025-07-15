@@ -1,4 +1,3 @@
-# spec/requests/api/v1/chunks_signed_url_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Chunks Controller with Signed URLs", type: :request do

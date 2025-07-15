@@ -104,17 +104,18 @@ RSpec.describe "API Versioning", type: :request do
   describe "content type handling" do
     it "accepts JSON content type" do
       workspace_params = {
-        workspace: { name: "Test Workspace" },
-        workspace_type: "project_based"
+        workspace: { 
+          name: "Test Workspace",
+          workspace_type: "project_based"  # ← Moved INSIDE workspace hash
+        }
       }
       
       post "/api/v1/workspaces", 
-           params: workspace_params.to_json,
-           headers: headers.merge('Content-Type' => 'application/json')
+          params: workspace_params.to_json,
+          headers: headers.merge('Content-Type' => 'application/json')
       
       expect(response).to have_http_status(:created)
     end
-
   end
 
   describe "deprecated field handling" do

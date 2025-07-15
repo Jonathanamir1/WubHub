@@ -1,4 +1,3 @@
-# spec/requests/api/v1/chunks_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Api::V1::Chunks", type: :request do

@@ -1,4 +1,3 @@
-# spec/requests/api/v1/route_debug_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Route Debug", type: :request do

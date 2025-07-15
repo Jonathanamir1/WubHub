@@ -1,4 +1,3 @@
-# spec/requests/api/v1/uploads_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Api::V1::Uploads", type: :request do

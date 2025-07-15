@@ -1,6 +1,3 @@
-# TDD Test for Health Endpoint
-# Place this file in: backend/spec/requests/api/v1/health_spec.rb
-
 require 'rails_helper'
 
 RSpec.describe "Api::V1::Health", type: :request do

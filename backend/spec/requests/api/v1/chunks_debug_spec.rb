@@ -1,4 +1,3 @@
-# spec/requests/api/v1/chunks_debug_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Debug Chunks Controller", type: :request do

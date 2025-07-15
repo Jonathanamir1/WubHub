@@ -1,4 +1,3 @@
-# spec/requests/api/v1/chunks_security_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Chunks Security Integration", type: :request do

@@ -1,4 +1,3 @@
-# spec/requests/api/v1/simple_chunk_test_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Simple Chunk Upload Test", type: :request do

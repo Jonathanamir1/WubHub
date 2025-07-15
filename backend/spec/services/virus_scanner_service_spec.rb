@@ -1,5 +1,6 @@
 # spec/services/virus_scanner_service_spec.rb
 require 'rails_helper'
+require 'securerandom'
 
 # Create stub job classes for testing
 class VirusScanJob < ApplicationJob
@@ -25,7 +26,7 @@ RSpec.describe VirusScannerService, type: :service do
     ActiveJob::Base.queue_adapter.enqueued_jobs.clear
   end
   let(:service) { described_class.new }
-  let(:user) { create(:user) }
+  let(:user) { create(:user, email: "virus_test_#{SecureRandom.hex(8)}@example.com") }
   let(:workspace) { create(:workspace, user: user) }
   let(:container) { create(:container, workspace: workspace) }
   

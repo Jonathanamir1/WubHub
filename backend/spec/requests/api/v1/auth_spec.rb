@@ -1,4 +1,3 @@
-# backend/spec/requests/api/v1/auth_spec.rb
 require 'rails_helper'
 
 RSpec.describe "Api::V1::Auth", type: :request do
