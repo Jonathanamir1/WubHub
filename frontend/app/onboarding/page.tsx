@@ -142,7 +142,7 @@ export default function OnboardingPage() {
 	return (
 		<div className='min-h-screen bg-gray-900 flex items-center justify-center p-4'>
 			<motion.div
-				className='w-full max-w-6xl'
+				className='w-full'
 				initial={{ opacity: 0, y: 20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.5 }}

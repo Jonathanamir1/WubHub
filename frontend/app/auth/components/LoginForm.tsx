@@ -320,19 +320,6 @@ export default function LoginForm() {
 						)}
 					</AnimatePresence>
 				</motion.button>
-
-				{/* Sign Up Link */}
-				<div className='text-center pt-2'>
-					<p className='text-xs text-gray-400'>
-						Don't have an account?{' '}
-						<a
-							href='/auth/signup'
-							className='text-blue-400 hover:text-blue-300 font-medium transition-colors'
-						>
-							Sign up
-						</a>
-					</p>
-				</div>
 			</motion.form>
 		</motion.div>
 	);
