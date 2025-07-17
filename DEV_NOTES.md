@@ -14,3 +14,5 @@
 # Run specific test file
 ./backend/scripts/test_runner.sh spec/models/user_spec.rb
 ```
+
+#TEST
