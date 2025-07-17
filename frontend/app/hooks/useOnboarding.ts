@@ -1,3 +1,5 @@
+// frontend/app/hooks/useOnboarding.ts
+
 'use client';
 
 import {
@@ -13,6 +15,7 @@ import {
 	CreateWorkspaceRequest,
 	WorkspaceResponse,
 } from '../lib/onboarding';
+import { useAuth } from './useAuth'; // ADDED: Import useAuth
 
 // Types for the hook
 interface OnboardingContextType {
@@ -46,14 +49,28 @@ export function OnboardingProvider({
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
+	// ADDED: Get auth status to prevent calling onboarding API when not authenticated
+	const { isAuthenticated, isLoading: authLoading } = useAuth();
+
 	/**
 	 * Check onboarding status
 	 */
 	const checkStatus = async (): Promise<void> => {
+		// ADDED: Don't check onboarding status if user is not authenticated
+		if (!isAuthenticated) {
+			console.log(
+				'👤 User not authenticated, skipping onboarding status check'
+			);
+			setStatus(null);
+			setIsLoading(false);
+			return;
+		}
+
 		try {
 			setIsLoading(true);
 			setError(null);
 
+			console.log('🔍 Checking onboarding status for authenticated user...');
 			const statusResponse = await onboardingService.getStatus();
 			setStatus(statusResponse);
 
@@ -70,6 +87,10 @@ export function OnboardingProvider({
 	 * Start onboarding process
 	 */
 	const startOnboarding = async (): Promise<void> => {
+		if (!isAuthenticated) {
+			throw new Error('Must be authenticated to start onboarding');
+		}
+
 		try {
 			setIsLoading(true);
 			setError(null);
@@ -95,6 +116,10 @@ export function OnboardingProvider({
 	const createFirstWorkspace = async (
 		workspaceData: CreateWorkspaceRequest
 	): Promise<WorkspaceResponse> => {
+		if (!isAuthenticated) {
+			throw new Error('Must be authenticated to create workspace');
+		}
+
 		try {
 			setIsLoading(true);
 			setError(null);
@@ -121,6 +146,10 @@ export function OnboardingProvider({
 	 * Complete onboarding process
 	 */
 	const completeOnboarding = async (): Promise<void> => {
+		if (!isAuthenticated) {
+			throw new Error('Must be authenticated to complete onboarding');
+		}
+
 		try {
 			setIsLoading(true);
 			setError(null);
@@ -147,10 +176,12 @@ export function OnboardingProvider({
 		setError(null);
 	};
 
-	// Check status on mount
+	// UPDATED: Only check status when auth is loaded and user is authenticated
 	useEffect(() => {
-		checkStatus();
-	}, []);
+		if (!authLoading) {
+			checkStatus();
+		}
+	}, [authLoading, isAuthenticated]); // ADDED: Dependencies on auth state
 
 	const contextValue: OnboardingContextType = {
 		status,

@@ -1,6 +1,9 @@
+// frontend/app/onboarding/components/WubHubOnboarding.tsx
+
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
 	ChevronRight,
@@ -135,6 +138,7 @@ export default function WubHubOnboarding({
 	const [selectedMethod, setSelectedMethod] = useState<
 		'project_based' | 'client_based' | 'library' | null
 	>(null);
+	const router = useRouter();
 
 	const steps = [
 		'welcome',
@@ -164,6 +168,11 @@ export default function WubHubOnboarding({
 		setCurrentStep(5);
 	};
 
+	const handleCreateWorkspace = (workspaceType: string) => {
+		// Redirect to workspace creation page with pre-selected type
+		router.push(`/workspaces/create?type=${workspaceType}`);
+	};
+
 	const handleFinalSelection = async () => {
 		if (selectedMethod) {
 			await onSelect(selectedMethod);
@@ -174,25 +183,21 @@ export default function WubHubOnboarding({
 		switch (steps[currentStep]) {
 			case 'welcome':
 				return (
-					<div className='space-y-6'>
-						<div className='w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center'>
+					<div className='space-y-10 text-center justify-center items-center'>
+						<div className='w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto'>
 							<Music className='w-8 h-8 text-white' />
 						</div>
 						<div>
 							<h1 className='text-4xl font-bold mb-4 text-white'>
 								Welcome to WubHub
 							</h1>
-							<p className='text-xl text-gray-300 leading-relaxed'>
-								Let's set up your workspace to match how you create music
-							</p>
 						</div>
-						<div className='bg-gray-700/50 rounded-lg p-6 border border-gray-600'>
-							<h3 className='font-semibold mb-2 text-white'>
-								🎯 Smart File Organization
-							</h3>
-							<p className='text-sm text-gray-400'>
-								WubHub automatically organizes your files based on how you work.
-								Just drag and drop - we'll handle the rest.
+						<div className=' rounded-lg p-6 border border-gray-600'>
+							<p className='text-l text-gray-400'>
+								A music collaboration platform that transforms chaotic project
+								folders into organized workspaces with powerful collaboration
+								tools - version comparisons, grouped downloads, and intelligent
+								file organization.
 							</p>
 						</div>
 					</div>
@@ -531,10 +536,10 @@ export default function WubHubOnboarding({
 
 						<div className='text-center'>
 							<button
-								onClick={() => selectMethod(method.id)}
+								onClick={() => handleCreateWorkspace(method.id)}
 								className={`${method.color} hover:opacity-90 text-white px-8 py-3 rounded-lg font-semibold transition-opacity`}
 							>
-								Choose {method.title}
+								Create Workspace
 							</button>
 						</div>
 					</div>

@@ -46,9 +46,10 @@ export default function ExternalAuthButtons({
 			await signInWithGoogle();
 
 			console.log('✅ Google sign-in completed successfully');
-			console.log('🏠 About to redirect to dashboard...');
+			console.log('🏠 About to redirect to homepage...');
 
-			router.push('/dashboard');
+			// CHANGED: Redirect to homepage instead of dashboard
+			router.push('/');
 
 			console.log('✅ Router.push called');
 		} catch (error: any) {

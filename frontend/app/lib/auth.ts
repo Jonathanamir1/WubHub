@@ -1,3 +1,5 @@
+// frontend/app/lib/auth.ts
+
 import { api, ApiError, AuthResponse } from './api';
 
 // Request/Response Types
@@ -81,7 +83,8 @@ class AuthService {
 	 */
 	async getCurrentUser(): Promise<User> {
 		try {
-			const response = await api.get<{ user: User }>('/auth/me');
+			// FIXED: Use /auth/current instead of /auth/me
+			const response = await api.get<{ user: User }>('/auth/current');
 			return response.user;
 		} catch (error) {
 			if (error instanceof ApiError && error.status === 401) {

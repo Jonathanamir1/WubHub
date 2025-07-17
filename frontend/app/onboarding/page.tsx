@@ -1,4 +1,5 @@
-// app/onboarding/page.tsx
+// frontend/app/onboarding/page.tsx
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -20,8 +21,13 @@ type OnboardingStep =
 export default function OnboardingPage() {
 	const { user } = useAuth();
 	const { needsOnboarding, isCompleted, isLoading } = useOnboardingStatus();
-	const { startOnboarding, createFirstWorkspace, error, clearError } =
-		useOnboarding();
+	const {
+		startOnboarding,
+		createFirstWorkspace,
+		completeOnboarding,
+		error,
+		clearError,
+	} = useOnboarding();
 	const router = useRouter();
 
 	const [currentStep, setCurrentStep] = useState<OnboardingStep>(
@@ -32,6 +38,7 @@ export default function OnboardingPage() {
 	>(null);
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [createdWorkspace, setCreatedWorkspace] = useState<any>(null);
+	const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
 
 	// Check if user actually needs onboarding
 	useEffect(() => {
@@ -42,22 +49,6 @@ export default function OnboardingPage() {
 			router.push('/dashboard');
 		}
 	}, [needsOnboarding, isCompleted, isLoading, router]);
-
-	// Handle welcome step - start onboarding
-	const handleStartOnboarding = async () => {
-		try {
-			setIsProcessing(true);
-			clearError();
-
-			await startOnboarding();
-			setCurrentStep('workspace_type');
-		} catch (error) {
-			console.error('Failed to start onboarding:', error);
-			// Error is handled by useOnboarding hook
-		} finally {
-			setIsProcessing(false);
-		}
-	};
 
 	// Handle workspace type selection from the integrated component
 	const handleWorkspaceSelection = async (
@@ -97,6 +88,25 @@ export default function OnboardingPage() {
 	// Handle completion
 	const handleComplete = () => {
 		router.push('/dashboard');
+	};
+
+	// NEW: Handle skip onboarding
+	const handleSkipOnboarding = async () => {
+		try {
+			setIsCompletingOnboarding(true);
+			clearError();
+
+			console.log('⏭️ Skipping onboarding process...');
+			await completeOnboarding();
+
+			console.log('✅ Onboarding completed successfully');
+			router.push('/dashboard');
+		} catch (error) {
+			console.error('❌ Failed to complete onboarding:', error);
+			// Error is handled by useOnboarding hook
+		} finally {
+			setIsCompletingOnboarding(false);
+		}
 	};
 
 	// Show loading if checking onboarding status
@@ -147,26 +157,20 @@ export default function OnboardingPage() {
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.5 }}
 			>
-				{/* Progress Indicator */}
-				<div className='flex justify-center mb-8'>
-					<div className='flex space-x-2'>
-						{['workspace_selection', 'workspace_creation', 'complete'].map(
-							(step, index) => (
-								<div
-									key={step}
-									className={`w-3 h-3 rounded-full transition-colors ${
-										[
-											'workspace_selection',
-											'workspace_creation',
-											'complete',
-										].indexOf(currentStep) >= index
-											? 'bg-blue-500'
-											: 'bg-gray-600'
-									}`}
-								/>
-							)
-						)}
-					</div>
+				{/* Header with Skip Button */}
+				<div className='flex justify-between items-center mb-8'>
+					<div className='flex-1'></div>
+					<motion.button
+						onClick={handleSkipOnboarding}
+						disabled={isCompletingOnboarding}
+						className='px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm'
+						whileHover={{ scale: 1.05 }}
+						whileTap={{ scale: 0.95 }}
+					>
+						{isCompletingOnboarding
+							? 'Completing...'
+							: 'Skip & Complete Onboarding'}
+					</motion.button>
 				</div>
 
 				{/* Error Display */}

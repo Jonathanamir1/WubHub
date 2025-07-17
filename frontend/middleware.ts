@@ -1,3 +1,5 @@
+// frontend/middleware.ts (REMEMBER: ROOT LEVEL, NOT IN APP FOLDER)
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -5,8 +7,11 @@ export function middleware(request: NextRequest) {
 	// Get the pathname
 	const { pathname } = request.nextUrl;
 
+	console.log('🔍 MIDDLEWARE: Processing request for:', pathname);
+
 	// Get the JWT token from cookies
 	const token = request.cookies.get('auth_token')?.value;
+	console.log('🔍 MIDDLEWARE: Token found:', !!token);
 
 	// Define route categories
 	const isAuthRoute = pathname.startsWith('/auth');
@@ -18,23 +23,41 @@ export function middleware(request: NextRequest) {
 		pathname.startsWith('/workspace');
 	const isRootRoute = pathname === '/';
 
+	console.log('🔍 MIDDLEWARE: Route type:', {
+		isRootRoute,
+		isAuthRoute,
+		isProtectedRoute,
+		isOnboardingRoute,
+	});
+
 	// Check if user is authenticated
-	const isAuthenticated = !!token; // TODO: Add actual token validation
+	const isAuthenticated = !!token;
+	console.log('🔍 MIDDLEWARE: User authenticated:', isAuthenticated);
 
 	// Handle root route
 	if (isRootRoute) {
 		if (isAuthenticated) {
-			// Redirect authenticated users to dashboard
-			// Note: Dashboard will handle onboarding redirect via useEffect
-			return NextResponse.redirect(new URL('/dashboard', request.url));
+			// FIXED: Allow authenticated users to stay on homepage
+			console.log(
+				'✅ MIDDLEWARE: Authenticated user at root, allowing access to homepage'
+			);
+			return NextResponse.next();
 		} else {
 			// Redirect unauthenticated users to login
-			return NextResponse.redirect(new URL('/auth/login', request.url));
+			console.log(
+				'🔄 MIDDLEWARE: Unauthenticated user at root, redirecting to login'
+			);
+			const redirectUrl = new URL('/auth/login', request.url);
+			console.log('🔄 MIDDLEWARE: Redirect URL:', redirectUrl.toString());
+			return NextResponse.redirect(redirectUrl);
 		}
 	}
 
 	// Handle unauthenticated users accessing protected routes
 	if ((isProtectedRoute || isOnboardingRoute) && !isAuthenticated) {
+		console.log(
+			`🔒 MIDDLEWARE: Unauthenticated access to ${pathname}, redirecting to login`
+		);
 		// Redirect to login with return URL
 		const loginUrl = new URL('/auth/login', request.url);
 		loginUrl.searchParams.set('returnUrl', pathname);
@@ -43,23 +66,31 @@ export function middleware(request: NextRequest) {
 
 	// Handle authenticated users accessing auth routes
 	if (isAuthRoute && isAuthenticated) {
-		// Redirect to dashboard (dashboard will handle onboarding redirect)
-		return NextResponse.redirect(new URL('/dashboard', request.url));
+		console.log(
+			'🔄 MIDDLEWARE: Authenticated user accessing auth route, redirecting to homepage'
+		);
+		// Redirect to homepage
+		return NextResponse.redirect(new URL('/', request.url));
 	}
 
 	// Allow onboarding routes for authenticated users
-	// (The onboarding component will handle checking if they actually need onboarding)
 	if (isOnboardingRoute && isAuthenticated) {
+		console.log(
+			'✅ MIDDLEWARE: Allowing onboarding route for authenticated user'
+		);
 		return NextResponse.next();
 	}
 
 	// Allow protected routes for authenticated users
-	// (Each protected route will check onboarding status via useOnboarding hook)
 	if (isProtectedRoute && isAuthenticated) {
+		console.log(
+			'✅ MIDDLEWARE: Allowing protected route for authenticated user'
+		);
 		return NextResponse.next();
 	}
 
 	// Allow the request to continue
+	console.log('✅ MIDDLEWARE: Allowing request to continue');
 	return NextResponse.next();
 }
 
