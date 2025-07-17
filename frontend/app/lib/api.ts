@@ -1,4 +1,3 @@
-// app/lib/api.ts
 import Cookies from 'js-cookie';
 
 // API Configuration

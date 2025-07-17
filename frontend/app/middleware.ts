@@ -1,4 +1,3 @@
-// middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -9,12 +8,14 @@ export function middleware(request: NextRequest) {
 	// Get the JWT token from cookies
 	const token = request.cookies.get('auth_token')?.value;
 
-	// Define protected and auth routes
+	// Define route categories
 	const isAuthRoute = pathname.startsWith('/auth');
+	const isOnboardingRoute = pathname.startsWith('/onboarding');
 	const isProtectedRoute =
 		pathname.startsWith('/dashboard') ||
 		pathname.startsWith('/projects') ||
-		pathname.startsWith('/settings');
+		pathname.startsWith('/settings') ||
+		pathname.startsWith('/workspace');
 	const isRootRoute = pathname === '/';
 
 	// Check if user is authenticated
@@ -24,6 +25,7 @@ export function middleware(request: NextRequest) {
 	if (isRootRoute) {
 		if (isAuthenticated) {
 			// Redirect authenticated users to dashboard
+			// Note: Dashboard will handle onboarding redirect via useEffect
 			return NextResponse.redirect(new URL('/dashboard', request.url));
 		} else {
 			// Redirect unauthenticated users to login
@@ -31,18 +33,30 @@ export function middleware(request: NextRequest) {
 		}
 	}
 
-	// Handle protected routes
-	if (isProtectedRoute && !isAuthenticated) {
+	// Handle unauthenticated users accessing protected routes
+	if ((isProtectedRoute || isOnboardingRoute) && !isAuthenticated) {
 		// Redirect to login with return URL
 		const loginUrl = new URL('/auth/login', request.url);
 		loginUrl.searchParams.set('returnUrl', pathname);
 		return NextResponse.redirect(loginUrl);
 	}
 
-	// Handle auth routes when already authenticated
+	// Handle authenticated users accessing auth routes
 	if (isAuthRoute && isAuthenticated) {
-		// Redirect to dashboard if trying to access auth pages while logged in
+		// Redirect to dashboard (dashboard will handle onboarding redirect)
 		return NextResponse.redirect(new URL('/dashboard', request.url));
+	}
+
+	// Allow onboarding routes for authenticated users
+	// (The onboarding component will handle checking if they actually need onboarding)
+	if (isOnboardingRoute && isAuthenticated) {
+		return NextResponse.next();
+	}
+
+	// Allow protected routes for authenticated users
+	// (Each protected route will check onboarding status via useOnboarding hook)
+	if (isProtectedRoute && isAuthenticated) {
+		return NextResponse.next();
 	}
 
 	// Allow the request to continue

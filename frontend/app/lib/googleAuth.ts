@@ -1,4 +1,3 @@
-// app/lib/googleAuth.ts
 declare global {
 	interface Window {
 		google: any;

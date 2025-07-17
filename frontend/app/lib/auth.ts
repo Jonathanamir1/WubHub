@@ -1,4 +1,3 @@
-// app/lib/auth.ts
 import { api, ApiError, AuthResponse } from './api';
 
 // Request/Response Types
