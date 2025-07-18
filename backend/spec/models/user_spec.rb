@@ -326,9 +326,32 @@ RSpec.describe User, type: :model do
     end
 
     describe '#start_onboarding!' do
-      it 'sets onboarding step to workspace_creation' do
+      it 'sets onboarding step to welcome (enhanced system)' do
         user.start_onboarding!
-        expect(user.onboarding_step).to eq('workspace_creation')
+        # Enhanced system starts with 'welcome' instead of 'workspace_creation'
+        expect(user.onboarding_step).to eq('welcome')
+      end
+    end
+
+    describe '#current_onboarding_step' do
+      it 'returns welcome for new users instead of not_started' do
+        new_user = build(:user, onboarding_step: nil)
+        expect(new_user.current_onboarding_step).to eq('welcome')
+      end
+
+      it 'returns welcome for not_started users' do
+        user.update!(onboarding_step: 'not_started')
+        expect(user.current_onboarding_step).to eq('welcome')
+      end
+
+      it 'maps workspace_creation to workspace_setup' do
+        user.update!(onboarding_step: 'workspace_creation')
+        expect(user.current_onboarding_step).to eq('workspace_setup')
+      end
+
+      it 'maintains existing behavior for completed users' do
+        user.update!(onboarding_step: 'completed')
+        expect(user.current_onboarding_step).to eq('completed')
       end
     end
 

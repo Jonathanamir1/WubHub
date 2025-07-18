@@ -21,14 +21,24 @@ class User < ApplicationRecord
   # Callbacks
   before_save :normalize_email
   
-  # Onboarding step constants
+  # Onboarding step constants - Legacy system
   ONBOARDING_STEPS = [
     'not_started',
     'workspace_creation',
     'completed'
   ].freeze
   
-  validates :onboarding_step, inclusion: { in: ONBOARDING_STEPS }, allow_blank: true
+  # Enhanced onboarding constants for new system
+  DETAILED_ONBOARDING_STEPS = [
+    'welcome',
+    'profile_setup', 
+    'workspace_setup',
+    'final_setup',
+    'completed'
+  ].freeze
+  
+  # Validate both old and new onboarding steps
+  validates :onboarding_step, inclusion: { in: ONBOARDING_STEPS + DETAILED_ONBOARDING_STEPS }, allow_blank: true
   
   # Workspace access methods
   def accessible_workspaces
@@ -43,6 +53,15 @@ class User < ApplicationRecord
     
     # Return all accessible workspaces
     Workspace.where(id: all_workspace_ids)
+  end
+  
+  def all_workspaces
+    Workspace.where(id: self.workspaces.pluck(:id))
+    # For a real implementation with collaborators, you'd include workspaces from collaborations
+  end
+  
+  def owned_workspaces
+    Workspace.where(user_id: id)
   end
   
   def can_access_workspace?(workspace)
@@ -62,9 +81,19 @@ class User < ApplicationRecord
     !onboarding_completed?
   end
   
+  # Enhanced current_onboarding_step that maps old steps to new steps
   def current_onboarding_step
     return 'completed' if onboarding_completed?
-    onboarding_step || 'not_started'
+    
+    # Map legacy steps to new steps for backward compatibility
+    case onboarding_step
+    when 'not_started', nil, ''
+      'welcome'
+    when 'workspace_creation'
+      'workspace_setup'
+    else
+      onboarding_step || 'welcome'
+    end
   end
   
   def can_complete_onboarding?
@@ -72,8 +101,10 @@ class User < ApplicationRecord
     workspaces.exists?
   end
   
+  # Legacy onboarding methods (for backward compatibility)
   def start_onboarding!
-    update!(onboarding_step: 'workspace_creation')
+    # Enhanced system starts with 'welcome' instead of 'workspace_creation'
+    update!(onboarding_step: 'welcome')
   end
   
   def complete_onboarding!
@@ -84,9 +115,9 @@ class User < ApplicationRecord
   end
 
   def can_create_first_workspace?
-  # User can create their first workspace if they're in workspace_creation step
-  # or workspace_type_selection step (we removed this step but keeping for flexibility)
-  onboarding_step.in?(['workspace_creation']) && !onboarding_completed?
+    # User can create their first workspace if they're in workspace_creation step
+    # or workspace_type_selection step (we removed this step but keeping for flexibility)
+    onboarding_step.in?(['workspace_creation']) && !onboarding_completed?
   end
 
   # Also, let's add a helper to check if this would be their first workspace
@@ -96,9 +127,22 @@ class User < ApplicationRecord
   
   def reset_onboarding!
     update!(
-      onboarding_step: 'not_started',
-      onboarding_completed_at: nil  
+      onboarding_step: 'welcome',  # Enhanced system starts with 'welcome'
+      onboarding_completed_at: nil  # Clear completion timestamp when restarting
     )
+  end
+  
+  # Enhanced onboarding methods that integrate with OnboardingService
+  def onboarding_service
+    @onboarding_service ||= OnboardingService.new(self)
+  end
+
+  def can_access_onboarding_step?(step)
+    onboarding_service.can_access_step?(step)
+  end
+
+  def onboarding_progress_percentage
+    onboarding_service.progress_percentage
   end
   
   # Class methods

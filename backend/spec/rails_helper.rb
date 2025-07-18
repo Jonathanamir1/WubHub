@@ -45,6 +45,16 @@ rescue ActiveRecord::PendingMigrationError => e
   abort e.to_s.strip
 end
 
+# Helper method for R2 configuration check
+def r2_configured?
+  %w[
+    CLOUDFLARE_R2_ACCESS_KEY_ID
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY
+    CLOUDFLARE_R2_BUCKET
+    CLOUDFLARE_R2_ENDPOINT
+  ].all? { |var| ENV[var].present? }
+end
+
 RSpec.configure do |config|
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
   config.fixture_paths = ["#{::Rails.root}/spec/fixtures"]
@@ -54,41 +64,39 @@ RSpec.configure do |config|
   # instead of true.
   config.use_transactional_fixtures = false
 
-  # You can uncomment this line to turn off ActiveRecord support entirely.
-  # config.use_active_record = false
-
   # RSpec Rails can automatically mix in different behaviours to your tests
   # based on their file location, for example enabling you to call `get` and
   # `post` in specs under `spec/controllers`.
-  #
-  # You can disable this behaviour by removing the line below, and instead
-  # explicitly tag your specs with their type, e.g.:
-  #
-  #     RSpec.describe UsersController, type: :controller do
-  #       # ...
-  #     end
-  #
-  # The different available types are documented in the features, such as in
-  # https://relishapp.com/rspec/rspec-rails/docs
   config.infer_spec_type_from_file_location!
 
   # Filter lines from Rails gems in backtraces.
   config.filter_rails_from_backtrace!
-  # arbitrary gems may also be filtered via:
-  # config.filter_gems_from_backtrace("gem name")
 
   # Include Factory Bot methods
   config.include FactoryBot::Syntax::Methods
+
+  # FIXED: Exclude development tests completely in test environment
+  if Rails.env.test?
+    config.filter_run_excluding :development
+  end
+  
+  config.filter_run_when_matching :focus
 
   # ENHANCED: Environment-aware test setup with colored output
   config.before(:suite) do
     env_color = Rails.env.test? ? "\e[32m" : "\e[33m"  # Green for test, Yellow for development
     reset_color = "\e[0m"
     
+    puts "#{env_color}🧪 Running tests in #{Rails.env.upcase} environment#{reset_color}"
+    puts "#{env_color}📦 Active Storage Service: #{ActiveStorage::Blob.service.class.name}#{reset_color}"
+    
+    # Only show R2 info if we're in development
+    if Rails.env.development? && ActiveStorage::Blob.service.respond_to?(:bucket)
+      puts "#{env_color}🪣 R2 Bucket: #{ActiveStorage::Blob.service.bucket.name}#{reset_color}"
+    end
     
     # ENHANCED: Environment-specific database cleaning
     DatabaseCleaner.allow_remote_database_url = true
-
   end
 
   # ENHANCED: Environment-aware database cleaning strategy
@@ -107,8 +115,10 @@ RSpec.configure do |config|
     DatabaseCleaner.clean
   end
   
-  # SIMPLIFIED: Tag-based configuration
-  config.before(:each, development: true) do
-    # Force development environment for tests tagged with development: true
+  # Skip R2 tests if R2 is not configured (even in development)
+  config.before(:each, :r2_integration) do
+    unless r2_configured?
+      skip "R2 not configured - set CLOUDFLARE_R2_* environment variables"
+    end
   end
 end

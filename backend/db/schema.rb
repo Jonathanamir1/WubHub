@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_07_14_125826) do
+ActiveRecord::Schema[7.1].define(version: 2025_07_17_164446) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -184,6 +184,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_07_14_125826) do
     t.string "onboarding_step", default: "not_started"
     t.string "name", null: false
     t.string "google_id"
+    t.text "onboarding_data"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["google_id"], name: "index_users_on_google_id", unique: true
     t.index ["onboarding_completed_at"], name: "index_users_on_onboarding_completed_at"
